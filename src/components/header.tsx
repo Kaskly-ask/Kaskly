@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useWallet } from "@/lib/wallet";
+import { shortAddress } from "@/lib/config";
 import { WalletPanel } from "./wallet-panel";
 
 const NAV = [
@@ -10,12 +11,6 @@ const NAV = [
   { href: "/inbox", label: "Inbox" },
   { href: "/sent", label: "Sent" },
 ] as const;
-
-export function shortAddress(address: string): string {
-  const sep = address.indexOf(":");
-  const body = sep >= 0 ? address.slice(sep + 1) : address;
-  return `${body.slice(0, 6)}…${body.slice(-6)}`;
-}
 
 export function Header() {
   const pathname = usePathname();

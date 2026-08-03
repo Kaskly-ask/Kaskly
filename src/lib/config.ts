@@ -14,6 +14,12 @@ if (!NETWORK_ID.startsWith("testnet")) {
 /** Optional pinned wRPC endpoint; empty → SDK public-node resolver. */
 export const WRPC_URL = process.env.NEXT_PUBLIC_KASPA_WRPC_URL || undefined;
 
+/** REST indexer base (kaspa-rest-server) — used to look up the spending tx
+ * of a covenant and for the rebuild-from-chain path. Chain (wRPC) remains
+ * the source of truth for live status. */
+export const REST_API_BASE =
+  process.env.NEXT_PUBLIC_KASPA_REST_API_BASE || "https://api-tn10.kaspa.org";
+
 /** Explorer base for C4 links (tn10.kaspa.stream confirmed working). */
 const EXPLORER_TX_BASE =
   process.env.NEXT_PUBLIC_EXPLORER_TX_URL_BASE || "https://tn10.kaspa.stream/txs/";
@@ -34,6 +40,13 @@ export function formatKas(sompi: bigint): string {
   const frac = sompi % SOMPI_PER_KAS;
   if (frac === 0n) return whole.toString();
   return `${whole}.${frac.toString().padStart(8, "0").replace(/0+$/, "")}`;
+}
+
+/** Shorten a Kaspa address for chips/labels. */
+export function shortAddress(address: string): string {
+  const sep = address.indexOf(":");
+  const body = sep >= 0 ? address.slice(sep + 1) : address;
+  return `${body.slice(0, 6)}…${body.slice(-6)}`;
 }
 
 /** Parse a user-entered KAS amount into sompi. Throws on bad input. */

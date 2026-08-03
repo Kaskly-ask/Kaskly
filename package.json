@@ -17,6 +17,7 @@
     "@noble/ciphers": "^2.2.0",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
+    "@prisma/adapter-better-sqlite3": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "kaspa-wasm": "file:vendor/kaspa-wasm32-sdk/nodejs/kaspa",
     "kaspa-wasm-web": "file:vendor/kaspa-wasm32-sdk/web/kaspa",
