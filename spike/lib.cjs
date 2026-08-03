@@ -101,6 +101,53 @@ function buildAskRedeemScript({ recipientXOnlyHex, senderXOnlyHex, deadline }) {
     .addOp(Opcodes.OpEndIf);
 }
 
+// Serialize a ScriptPublicKey the way OpTxOutputSpk pushes it on the stack:
+// 2-byte BIG-ENDIAN version || script bytes. VERIFIED from rusty-kaspa
+// v2.0.1 crypto/txscript/src/lib.rs (SpkEncoding::to_bytes:
+// `self.version.to_be_bytes() ... chain(self.script())`).
+function spkToStackBytes(spk) {
+  const version = typeof spk.version === "number" ? spk.version : 0;
+  const scriptHex = typeof spk.script === "string" ? spk.script : Buffer.from(spk.script).toString("hex");
+  const out = Buffer.alloc(2 + scriptHex.length / 2);
+  out.writeUInt16BE(version, 0);
+  Buffer.from(scriptHex, "hex").copy(out, 2);
+  return out;
+}
+
+// V2 covenant: claim branch unchanged; refund branch requires NO signature —
+// instead the covenant pins the refund shape via introspection (Phase 2
+// design goal from the Phase 1 gate): exactly one output, paying >= minRefund
+// to the sender's SPK. Anyone can trigger it after the deadline; funds can
+// only go to the sender.
+function buildAskRedeemScriptV2({ recipientXOnlyHex, senderSpkBytes, deadline, minRefund }) {
+  const { ScriptBuilder, Opcodes } = kaspa;
+  const prefixBytes = Buffer.from(ASK_PREFIX, "utf8");
+  return new ScriptBuilder()
+    .addOp(Opcodes.OpIf)
+    .addI64(0n)
+    .addI64(BigInt(prefixBytes.length))
+    .addOp(Opcodes.OpTxPayloadSubstr)
+    .addData(prefixBytes)
+    .addOp(Opcodes.OpEqualVerify)
+    .addData(Buffer.from(recipientXOnlyHex, "hex"))
+    .addOp(Opcodes.OpCheckSig)
+    .addOp(Opcodes.OpElse)
+    .addLockTime(deadline)
+    .addOp(Opcodes.OpCheckLockTimeVerify)
+    .addOp(Opcodes.OpTxOutputCount)
+    .addI64(1n)
+    .addOp(Opcodes.OpNumEqualVerify)
+    .addI64(0n)
+    .addOp(Opcodes.OpTxOutputSpk)
+    .addData(senderSpkBytes)
+    .addOp(Opcodes.OpEqualVerify)
+    .addI64(0n)
+    .addOp(Opcodes.OpTxOutputAmount)
+    .addI64(minRefund)
+    .addOp(Opcodes.OpGreaterThanOrEqual)
+    .addOp(Opcodes.OpEndIf);
+}
+
 function xOnlyHex(keypair) {
   const { PublicKey } = kaspa;
   const hex = new PublicKey(keypair.publicKey).toXOnlyPublicKey().toString();
@@ -154,7 +201,9 @@ module.exports = {
   isChainRejection,
   loadKeys,
   buildAskRedeemScript,
+  buildAskRedeemScriptV2,
   buildSpendSignatureScript,
+  spkToStackBytes,
   xOnlyHex,
   loadAsks,
   saveAsks,

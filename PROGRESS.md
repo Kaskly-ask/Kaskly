@@ -2,8 +2,60 @@
 
 ## Current phase
 
-**Phase 1 — Covenant feasibility spike: COMPLETE, outcome GREEN (with one
-documented capability boundary). STOPPED at the human gate (Q2).**
+**Phase 2 — Protocol spec + core lifecycle** (in progress)
+
+### Phase 1 gate decision (human, 2026-08-03)
+
+- **Q2: Phase 1 GREEN APPROVED** — covenant architecture confirmed.
+- **F1/D9: honest framing adopted** — "a reply or your money back; late
+  replies lose to the refund." CLAUDE.md D9 amended accordingly (same date).
+- **Anyone-can-trigger refund** (covenant-pinned destination/amount) is a
+  Phase 2 design goal: attempt it; report if introspection opcodes can't
+  express it.
+- **Normative client rules for ASKSPEC**: sender clients auto-broadcast the
+  refund at deadline; recipient clients refuse to construct late claims.
+- **Q3 decided (human, 2026-08-03): `ciph_msg:1:ask:` provisionally, flagged
+  PENDING in ASKSPEC** — final namespace to be confirmed with the Kasia team
+  when the pitch lands. Rationale: inside their namespace means existing
+  Kasia clients already see Ask transactions as Kasia-family traffic
+  (integration-friendly default); if they prefer separation, the version
+  bump path handles it.
+
+## Phase 2 checklist
+
+- [x] Hardened refund covenant spike — **SUCCESS (2026-08-03, TN10)**. The
+      anyone-can-trigger refund IS expressible. V2 refund branch:
+      `CLTV(deadline) + OpTxOutputCount==1 + OpTxOutputSpk(0)==senderSPK +
+      OpTxOutputAmount(0)>=minRefund` — NO signature required. Results
+      (spike/06-open-refund.cjs):
+      - V2 lock: `c851addddfec04b86cefe37182bd482d23b3e3d207e4c33197446139614cb3cc`
+      - Attack, refund to wrong destination → CHAIN REJECTED ("script ran,
+        but verification failed")
+      - Attack, skimmed amount (sender paid less, rest to fees) → CHAIN
+        REJECTED ("false stack entry")
+      - **Sig-less open refund ACCEPTED**:
+        `878b8fc0a004f21e126ef97cc7b9d7e37fac6c3db52a174a1182637cf4103366`
+        (R2-verified via REST: 99,500,000 → sender, single output, no fee
+        output, 117-byte sigscript = selector+redeem only)
+      - SPK stack encoding VERIFIED from rusty-kaspa v2.0.1
+        `crypto/txscript/src/lib.rs` (SpkEncoding::to_bytes = 2-byte
+        big-endian version || script)
+      Consequence: any watcher (recipient's client, a watchtower, anyone)
+      can close the F1 race window in the first post-deadline block, and
+      funds can only ever go to the sender. **V2 becomes the primary escrow
+      design for ASKSPEC v0.1.**
+- [ ] Core library: payload codec, covenant builder, lock/claim/refund
+      construction, discovery scan, deadline conversion (no UI)
+- [ ] Automated test suite incl. full R3 attack set against testnet
+- [ ] All three terminal states demonstrated from tests with txids recorded
+- [ ] R2 dual verification on every amount (raw tx decode; no fee outputs)
+- [ ] ASKSPEC.md v0.1 (payload format, lifecycle, escrow, client rules)
+- [x] Q3 namespace decision: `ciph_msg:1:ask:` provisional, PENDING flag in
+      ASKSPEC (human decision recorded above)
+- [ ] Q4 (D7) decision point presented with effort estimates
+- [ ] TRUST.md current; committed + tagged phase-2
+
+## Phase 1 results (2026-08-03, testnet-10, node rusty-kaspa 2.0.1 via public wRPC)
 
 ## Phase 1 results (2026-08-03, testnet-10, node rusty-kaspa 2.0.1 via public wRPC)
 

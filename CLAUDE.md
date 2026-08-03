@@ -101,10 +101,17 @@ D7.  REPLY PRIVACY IS A GATED DECISION (Q4). Target state: replies
 D8.  Asks are PRIVATE between sender and receiver. No public feeds, no
      public inbox, no directory. (Public modes were DROPS; not here.)
 D9.  Sender sets amount, message, and deadline (default 7 days).
-     Refunds are always 100%. Post-deadline replies must be cleanly
-     rejected — no race where a late reply takes already-refundable
-     funds. Exact deadline semantics (DAA score vs. timestamp) are
-     defined in ASKSPEC.md from real chain capabilities.
+     Refunds are always 100%. Framing (amended at the Phase 1 gate,
+     2026-08-03, per finding F1): "a reply or your money back; late
+     replies lose to the refund." The chain cannot expire claims at
+     the deadline; what it enforces is that once the refund executes,
+     late replies are rejected forever. Normative mitigations (ASKSPEC
+     client rules): sender clients auto-broadcast the refund at the
+     deadline; recipient clients refuse to construct post-deadline
+     claims. The anyone-can-trigger refund variant (covenant-pinned
+     destination/amount) is a Phase 2 design goal. Exact deadline
+     semantics (DAA score vs. timestamp) are defined in ASKSPEC.md
+     from real chain capabilities.
 D10. Testnet ONLY for this entire brief. Which testnet (TN10/TN12/
      other) is verified in Phase 0 from current Kaspa docs — whichever
      currently carries the post-Toccata covenant feature set. Mainnet
