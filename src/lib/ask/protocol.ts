@@ -1,0 +1,176 @@
+// ASK protocol constants and payload codec (ASKSPEC.md §2).
+// Namespace decision (Q3, human, 2026-08-03): provisional `ciph_msg:1:ask:`
+// inside Kasia's namespace — PENDING confirmation with the Kasia team.
+
+/** The on-chain namespace prefix. Also enforced BY THE COVENANT on claim
+ * transactions (first PREFIX_LEN bytes of the tx payload). */
+export const ASK_PREFIX = "ciph_msg:1:ask:";
+export const ASK_PREFIX_BYTES = new TextEncoder().encode(ASK_PREFIX);
+
+/** Payload subkinds within the ask namespace. */
+export const SUBKIND_ASK = "a";
+export const SUBKIND_REPLY = "r";
+
+/** v0.1 size ceiling for the whole tx payload, bytes. Conservative bound
+ * under Kasia's client heuristic (MAX_PAYLOAD_SIZE = 17.7 KiB, their
+ * src/config/constants.ts); the consensus-level limit remains UNVERIFIED
+ * and is tracked in PROGRESS.md. */
+export const MAX_PAYLOAD_BYTES = 16384;
+/** Max message length in UTF-16 code units, client-enforced. */
+export const MAX_MESSAGE_CHARS = 10000;
+
+/** Refund fee allowance in sompi: the covenant requires the refund to pay
+ * at least (amount - this) back to the sender. */
+export const REFUND_FEE_ALLOWANCE = 500_000n;
+
+/** Message encoding marker (Q4/D7 pending): "plain" now; "kasia1" reserved
+ * for Kasia's ECDH+HKDF+ChaCha20-Poly1305 scheme. */
+export type MessageEncoding = "plain" | "kasia1";
+
+export interface AskEnvelope {
+  v: 1;
+  /** Sender's kaspatest:/kaspa: address (refund destination, pinned by covenant). */
+  sender: string;
+  /** Recipient's address (claim key holder). */
+  recipient: string;
+  /** Absolute deadline as a DAA score (decimal string; BigInt-safe). */
+  deadlineDaa: string;
+  /** Minimum refund amount in sompi (decimal string) pinned by the covenant. */
+  minRefund: string;
+  msgEnc: MessageEncoding;
+  /** Message: UTF-8 text (plain) or hex ciphertext (kasia1). */
+  message: string;
+}
+
+export interface ReplyEnvelope {
+  v: 1;
+  /** The lock txid this reply claims. */
+  ref: string;
+  msgEnc: MessageEncoding;
+  message: string;
+}
+
+const te = new TextEncoder();
+const td = new TextDecoder();
+
+export function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export function fromHex(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0 || /[^0-9a-fA-F]/.test(hex)) {
+    throw new Error("invalid hex");
+  }
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+function encodePayload(subkind: string, envelope: object): string {
+  const body = JSON.stringify(envelope);
+  const payload = te.encode(`${ASK_PREFIX}${subkind}:${body}`);
+  if (payload.length > MAX_PAYLOAD_BYTES) {
+    throw new Error(`payload exceeds ${MAX_PAYLOAD_BYTES} bytes`);
+  }
+  return toHex(payload);
+}
+
+/** Build the hex tx payload announcing an Ask (goes on the LOCK tx). */
+export function encodeAskPayload(env: AskEnvelope): string {
+  if (env.message.length > MAX_MESSAGE_CHARS) throw new Error("message too long");
+  return encodePayload(SUBKIND_ASK, env);
+}
+
+/** Build the hex tx payload carrying a reply (goes on the CLAIM tx; must
+ * keep the covenant-enforced prefix). */
+export function encodeReplyPayload(env: ReplyEnvelope): string {
+  if (env.message.length > MAX_MESSAGE_CHARS) throw new Error("message too long");
+  return encodePayload(SUBKIND_REPLY, env);
+}
+
+export type ParsedAskPayload =
+  | { kind: "ask"; envelope: AskEnvelope }
+  | { kind: "reply"; envelope: ReplyEnvelope };
+
+/** Parse a hex tx payload. Returns null for non-ASK payloads; throws on
+ * ASK-namespace payloads that are malformed (R3: malformed payload). */
+export function parseAskPayload(payloadHex: string): ParsedAskPayload | null {
+  let bytes: Uint8Array;
+  try {
+    bytes = fromHex(payloadHex);
+  } catch {
+    return null;
+  }
+  if (bytes.length > MAX_PAYLOAD_BYTES) return null;
+  let text: string;
+  try {
+    text = td.decode(bytes);
+  } catch {
+    return null;
+  }
+  if (!text.startsWith(ASK_PREFIX)) return null;
+  const rest = text.slice(ASK_PREFIX.length);
+  const sep = rest.indexOf(":");
+  if (sep < 0) throw new Error("malformed ask payload: missing subkind");
+  const subkind = rest.slice(0, sep);
+  const body = rest.slice(sep + 1);
+  let json: unknown;
+  try {
+    json = JSON.parse(body);
+  } catch {
+    throw new Error("malformed ask payload: invalid JSON body");
+  }
+  if (subkind === SUBKIND_ASK) {
+    const env = validateAskEnvelope(json);
+    return { kind: "ask", envelope: env };
+  }
+  if (subkind === SUBKIND_REPLY) {
+    const env = validateReplyEnvelope(json);
+    return { kind: "reply", envelope: env };
+  }
+  throw new Error(`malformed ask payload: unknown subkind '${subkind}'`);
+}
+
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null;
+}
+
+const DECIMAL = /^\d+$/;
+
+function validateAskEnvelope(x: unknown): AskEnvelope {
+  if (!isRecord(x)) throw new Error("malformed ask envelope");
+  const { v, sender, recipient, deadlineDaa, minRefund, msgEnc, message } = x;
+  if (
+    v !== 1 ||
+    typeof sender !== "string" ||
+    typeof recipient !== "string" ||
+    typeof deadlineDaa !== "string" ||
+    !DECIMAL.test(deadlineDaa) ||
+    typeof minRefund !== "string" ||
+    !DECIMAL.test(minRefund) ||
+    (msgEnc !== "plain" && msgEnc !== "kasia1") ||
+    typeof message !== "string" ||
+    message.length > MAX_MESSAGE_CHARS
+  ) {
+    throw new Error("malformed ask envelope");
+  }
+  return { v, sender, recipient, deadlineDaa, minRefund, msgEnc, message };
+}
+
+function validateReplyEnvelope(x: unknown): ReplyEnvelope {
+  if (!isRecord(x)) throw new Error("malformed reply envelope");
+  const { v, ref, msgEnc, message } = x;
+  if (
+    v !== 1 ||
+    typeof ref !== "string" ||
+    !/^[0-9a-fA-F]{64}$/.test(ref) ||
+    (msgEnc !== "plain" && msgEnc !== "kasia1") ||
+    typeof message !== "string" ||
+    message.length > MAX_MESSAGE_CHARS
+  ) {
+    throw new Error("malformed reply envelope");
+  }
+  return { v, ref, msgEnc, message };
+}

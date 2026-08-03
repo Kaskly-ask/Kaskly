@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored SDK and throwaway spike scripts are not app code.
+    "vendor/**",
+    "spike/**",
   ]),
 ]);
 

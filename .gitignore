@@ -37,6 +37,7 @@ vendor/kaspa-wasm32-sdk/nodejs/kaspa-dev/
 # spike throwaway testnet keys + state (brief L5: never commit funded keys)
 spike/.keys.json
 spike/.asks.json
+tests/integration/.txids.json
 
 # misc
 .DS_Store

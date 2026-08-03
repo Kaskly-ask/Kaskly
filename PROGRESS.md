@@ -21,6 +21,14 @@
   (integration-friendly default); if they prefer separation, the version
   bump path handles it.
 
+### Pitch material noted by the human (2026-08-03, for PITCH.md)
+
+The tn10.kaspa.stream explorer **natively parses ASK payloads** — it shows a
+"Kasia payload" panel with msg_type "ask" for the claim tx. Screenshot-worthy
+evidence that the inside-namespace Q3 choice makes ASK ecosystem-native on
+day one. tn10.kaspa.stream confirmed as the working explorer for C4 links
+(.env.example updated).
+
 ## Phase 2 checklist
 
 - [x] Hardened refund covenant spike — **SUCCESS (2026-08-03, TN10)**. The
@@ -44,11 +52,30 @@
       can close the F1 race window in the first post-deadline block, and
       funds can only ever go to the sender. **V2 becomes the primary escrow
       design for ASKSPEC v0.1.**
-- [ ] Core library: payload codec, covenant builder, lock/claim/refund
-      construction, discovery scan, deadline conversion (no UI)
-- [ ] Automated test suite incl. full R3 attack set against testnet
-- [ ] All three terminal states demonstrated from tests with txids recorded
-- [ ] R2 dual verification on every amount (raw tx decode; no fee outputs)
+- [x] Core library (`src/lib/ask/`): protocol codec (ask/reply envelopes,
+      malformed-payload validation), covenant builder (V2), claim/refund tx
+      construction, connect-with-retry, firehose discovery scanner
+- [x] Automated test suite: 9 unit tests (codec, covenant golden vector
+      byte-for-byte vs the on-chain-proven script) + 3 integration tests
+      against TN10 — **all green 2026-08-03 17:03 local**
+- [x] Terminal states from automated tests (txids):
+      - ANSWERED: lock `a8bee9987d9fe4d8dbcebedf10e88ff230c996a5015a980b009127112b2901a4`,
+        claim `f498a6a1111834988be21d2da13a17550e11936a0f3e11d818a37a1cb7563ed6`
+      - REFUNDED: lock `5c6c6cc08139c551fe246da09ea9d014d561b772bd396a538ac37c318af978a3`,
+        sig-less refund `9d6d00b3fb6791be2ec3db177f98e32a7e0e9f1c4f26ec6e6362487a138f8bdd`
+      - LATE-REPLY-REJECTED: post-refund claim chain-rejected in the same
+        test (orphan/double-spend); pre-refund race documented as F1.
+      R3 attacks all chain-rejected in-suite: wrong-key claim, no-payload
+      claim, wrong-namespace claim, early refund, double-claim,
+      wrong-destination refund, two-output refund, skimmed refund,
+      double-refund. Partial-amount claim is impossible by UTXO semantics
+      (input fully consumed) — spec documents this.
+- [x] R2 dual verification in-suite: claim decoded via independent REST
+      (single output to recipient, exact amount, reply payload, no fee
+      outputs); refund recomputed from the consensus UTXO set via a fresh
+      RPC connection (exact minRefund at sender, covenant address drained).
+      Note: sender-side REST path is intermittently ECONNRESET-flaky from
+      this machine; refund verification deliberately uses the UTXO set.
 - [ ] ASKSPEC.md v0.1 (payload format, lifecycle, escrow, client rules)
 - [x] Q3 namespace decision: `ciph_msg:1:ask:` provisional, PENDING flag in
       ASKSPEC (human decision recorded above)
