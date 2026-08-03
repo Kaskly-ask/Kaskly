@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# env & secrets — never commit funded keys (brief L5)
+.env
+.env.*
+!.env.example
+*.key
+*.seed
+
+# prisma / sqlite
+prisma/*.db
+prisma/*.db-journal
+
+# misc
+.DS_Store
+*.log
+coverage/
