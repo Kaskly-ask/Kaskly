@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-wasm.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-wasm.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -17,6 +19,7 @@
     "@noble/hashes": "^2.2.0",
     "@prisma/client": "^7.9.1",
     "kaspa-wasm": "file:vendor/kaspa-wasm32-sdk/nodejs/kaspa",
+    "kaspa-wasm-web": "file:vendor/kaspa-wasm32-sdk/web/kaspa",
     "next": "16.2.12",
     "react": "19.2.4",
     "react-dom": "19.2.4"

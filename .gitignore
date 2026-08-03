@@ -25,14 +25,18 @@ next-env.d.ts
 *.db
 *.db-journal
 
-# vendored SDK: only nodejs/kaspa (the pinned file: dependency) is committed.
-# Everything else from kaspa-wasm32-sdk-v2.0.1.zip stays local; re-extract the
-# zip (sha256 recorded in PROGRESS.md) to restore docs/examples/web variants.
+# vendored SDK: only nodejs/kaspa and web/kaspa (the two pinned file:
+# dependencies) are committed. Everything else from kaspa-wasm32-sdk-v2.0.1.zip
+# stays local; re-extract the zip (sha256 in PROGRESS.md) to restore the rest.
 vendor/*.zip
 vendor/kaspa-wasm32-sdk/docs/
 vendor/kaspa-wasm32-sdk/examples/
-vendor/kaspa-wasm32-sdk/web/
+vendor/kaspa-wasm32-sdk/web/*
+!vendor/kaspa-wasm32-sdk/web/kaspa/
 vendor/kaspa-wasm32-sdk/nodejs/kaspa-dev/
+
+# browser wasm binary is copied from vendor/ at dev/build time (scripts/copy-wasm.mjs)
+public/kaspa_bg.wasm
 
 # spike throwaway testnet keys + state (brief L5: never commit funded keys)
 spike/.keys.json

@@ -2,8 +2,40 @@
 
 ## Current phase
 
-**Phase 3 — Reference client. APPROVED TO START (Phase 2 gate passed);
-not yet begun.**
+**Phase 3 — Reference client. IN PROGRESS (started 2026-08-03; Phase 2
+gate passed).**
+
+### Phase 3 context (from the human, 2026-08-03)
+
+- **Branding:** the reference client is branded **"Kaskly"**, tagline
+  **"Kaskly — Just Ask Me"**. (Branding lives in the client only; the
+  protocol and spec remain "ASK" — D2's credit model: spec carries
+  authorship, reference client carries branding.)
+- **Logo:** originally requested as an in-repo SVG build; **revised by the
+  human mid-session: skip the SVG** — final assets will be produced
+  externally with an image generator and delivered later. Until then the
+  UI header uses a plain text wordmark "Kaskly" (teal #49EACB on dark),
+  and `public/brand/` holds only a README marking the pending assets.
+- Carried-forward Phase 2 items (already in the checklist): inbox verifies
+  announcement→funded-P2SH (ASKSPEC §4); the two normative client rules
+  (auto-broadcast refund at deadline; refuse late-claim construction) are
+  UI behaviors this phase. `spike/.keys.json` must not be deleted.
+
+### Phase 3 architecture decision (recorded before building, per R6)
+
+**All keys, signing, and chain operations run in the BROWSER; the Next.js
+server only serves the app and the cache API.** Rationale: D4 ("key
+handling happens client-side only") makes browser-side signing mandatory,
+and signing requires the SDK — so the client uses the **web variant** of
+the pinned SDK (`vendor/kaspa-wasm32-sdk/web/kaspa`, same v2.0.1 zip,
+SHA256 recorded above), newly committed alongside the nodejs variant and
+pinned as a second `file:` dependency (`kaspa-wasm-web`). This is also
+Kasia's own architecture (browser wallet + wRPC over WebSocket). Bundler
+detail: `kaspa-wasm` resolves to the web package for browser bundles via
+a Turbopack alias; the web target's `init()` is called once at app start
+with `/kaspa_bg.wasm` (copied to `public/` at build, gitignored — 11.5 MB
+stays single-sourced in vendor/). Node-side code (tests, rebuild check)
+keeps importing the nodejs variant unchanged.
 
 ### Phase 2 gate decision (human, 2026-08-03)
 
@@ -297,6 +329,16 @@ the lock explicitly.
 - [x] Committed + tagged `phase-0`
 
 ## Session log
+
+### 2026-08-03 — Session 2 (Phase 3)
+
+- R7 ritual: read PROGRESS/TRACE/TRUST; `npm test` → **16/16 unit tests
+  green** (483ms). Base verified before new work.
+- Recorded Phase 3 context (Kaskly branding; logo deferred to external
+  assets per mid-session human instruction) and the browser-side
+  architecture decision above.
+- Phase 3 build begun: web SDK wiring → wallet layer → S1-S3 screens →
+  cache/rebuild → hardening.
 
 ### 2026-08-03 — Session 1 (Phases 0-2, all gates passed)
 
