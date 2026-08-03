@@ -10,9 +10,11 @@ import {
 } from "kaspa-wasm";
 import {
   encodeReplyPayload,
-  type ReplyEnvelope,
+  MAX_MESSAGE_CHARS,
   REFUND_FEE_ALLOWANCE,
 } from "./protocol";
+import { xOnlyFromAddress } from "./covenant";
+import { encryptKasia1 } from "./crypto";
 
 /** Strip the canonical small-data push prefix that createInputSignature
  * prepends (VERIFIED empirically in the Phase 1 spike, finding F2). */
@@ -56,7 +58,13 @@ export interface ClaimParams {
   redeemScriptHex: string;
   recipientAddress: string;
   recipientPrivateKeyHex: string;
-  reply: ReplyEnvelope;
+  /** Lock txid this reply claims. */
+  lockTxid: string;
+  /** Plaintext reply; encrypted to the SENDER with kasia1 before it ever
+   * leaves this function (Q4: encrypted only). */
+  replyText: string;
+  /** Sender's address — the reply's encryption target. */
+  senderAddress: string;
   /** Fee left to miners, sompi. Default = REFUND_FEE_ALLOWANCE. */
   fee?: bigint;
 }
@@ -67,7 +75,15 @@ export function buildClaimTransaction(params: ClaimParams): Transaction {
   const fee = params.fee ?? REFUND_FEE_ALLOWANCE;
   const amount = BigInt(params.covenantUtxo.amount) - fee;
   if (amount <= 0n) throw new Error("fee exceeds locked amount");
-  const payloadHex = encodeReplyPayload(params.reply);
+  if (params.replyText.length > MAX_MESSAGE_CHARS) {
+    throw new Error("reply too long");
+  }
+  const payloadHex = encodeReplyPayload({
+    v: 1,
+    ref: params.lockTxid,
+    msgEnc: "kasia1",
+    message: encryptKasia1(xOnlyFromAddress(params.senderAddress), params.replyText),
+  });
   const tx = createTransaction(
     [params.covenantUtxo],
     [{ address: params.recipientAddress, amount }],

@@ -12,6 +12,9 @@
     "test:all": "vitest run --testTimeout=600000 --hookTimeout=120000"
   },
   "dependencies": {
+    "@noble/ciphers": "^2.2.0",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
     "@prisma/client": "^7.9.1",
     "kaspa-wasm": "file:vendor/kaspa-wasm32-sdk/nodejs/kaspa",
     "next": "16.2.12",

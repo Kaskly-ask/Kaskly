@@ -40,17 +40,22 @@ recipient apps to refuse late replies. The honest product statement, chosen
 deliberately at the Phase 1 gate: **"a reply or your money back — late
 replies lose to the refund."**
 
-## Reply privacy (to be decided at Phase 2 — Q4)
+## Message privacy (decided 2026-08-03 — Q4)
 
-Either replies are end-to-end encrypted (Kasia's scheme), or v1 uses
-plaintext replies with an unmissable "your reply is permanent and PUBLIC
-on-chain" warning. Whichever ships will be stated here plainly.
+**Everything you write is encrypted. There is no plaintext mode.** Ask
+messages are encrypted so only the recipient can read them; replies are
+encrypted so only the original sender can read them — using the same
+encryption scheme as Kasia itself (the encrypted messenger ASK extends).
+Nobody needs to exchange keys first: a Kaspa address is enough.
 
-## Reply privacy (to be decided at Phase 2 — Q4)
+What is still public, permanently, on-chain: who asked whom (addresses),
+how much, the deadline, and whether it ended in a reply or a refund. The
+words themselves are not.
 
-Either replies are end-to-end encrypted (Kasia's scheme), or v1 uses
-plaintext replies with an unmissable "your reply is permanent and PUBLIC
-on-chain" warning. Whichever ships will be stated here plainly.
+One honest asterisk: Kasia publishes no official test files for their
+encryption, so our "same scheme" claim rests on a careful line-by-line
+reimplementation of their code, not on a cross-check against their output.
+We flag this for confirmation with the Kasia team.
 
 ## Always true, regardless of outcome
 

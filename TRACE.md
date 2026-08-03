@@ -22,8 +22,8 @@ evidence recorded in PROGRESS.md).
 | D4 | Non-custodial; keys client-side only | LIB (keys are caller-supplied, never stored/sent) | INT (keys live only in gitignored spike/.keys.json) | built |
 | D5 | Covenant-first; Plan B only via documented gate | LIB covenant.ts (V2 covenant); Plan B never needed | Phase 1 gate GREEN (human-approved) | verified |
 | D6 | Kasia-compatible addressing + payload conventions | protocol.ts (ciph_msg namespace, hex payloads), node.ts (firehose discovery, x-only-from-address) | UNIT codec; INT scanner | tested |
-| D7 | Reply privacy decision (encrypted vs plaintext+warning) | msgEnc field reserved ("plain"/"kasia1") | — | unstarted (Q4 pending) |
-| D8 | Asks private between sender and receiver | no feeds/directory built; payload privacy depends on Q4 | — | built (note: on-chain payloads are public unless kasia1) |
+| D7 | Reply privacy: ENCRYPTED ONLY (Q4 decided 2026-08-03) | crypto.ts (kasia1 reimplementation, source-cited); protocol.ts rejects any other msgEnc | UNIT crypto.test.ts (round-trip vs SDK keys, parity immunity, legacy form, tamper rejection, pinned KAT); INT (on-chain ask+reply decrypt round-trips) | tested |
+| D8 | Asks private between sender and receiver | no feeds/directory; content always kasia1-encrypted (D7); metadata public — stated in ASKSPEC §10/TRUST.md | INT (plaintext absent from on-chain payloads) | tested |
 | D9 | Amount/message/deadline; 100% refunds; late-reply framing (amended) | covenant.ts (minRefund pinning), ASKSPEC §8 client rules | INT (refund exact-amount + post-refund claim rejection); race documented (F1) | tested |
 | D10 | Testnet only; covenant testnet verified | .env.example (testnet-10, never mainnet) | all INT tests run on TN10 | tested |
 | D11 | Out-of-scope list enforced | IDEAS.md | — | built |

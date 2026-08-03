@@ -10,15 +10,17 @@ import {
 } from "kaspa-wasm";
 import {
   ASK_PREFIX,
+  MAX_MESSAGE_CHARS,
   encodeAskPayload,
   parseAskPayload,
   REFUND_FEE_ALLOWANCE,
   toHex,
   type AskEnvelope,
-  type MessageEncoding,
 } from "./protocol";
-import { deriveAskCovenant } from "./covenant";
-import { XOnlyPublicKey, Address } from "kaspa-wasm";
+import { deriveAskCovenant, xOnlyFromAddress } from "./covenant";
+import { encryptKasia1 } from "./crypto";
+
+export { xOnlyFromAddress };
 
 export interface NodeConfig {
   networkId: string;
@@ -82,8 +84,9 @@ export interface CreateAskParams {
   senderPrivateKeyHex: string;
   recipientAddress: string;
   amount: bigint;
+  /** Plaintext message; encrypted to the recipient with kasia1 before it
+   * ever leaves this function (Q4: encrypted only). */
   message: string;
-  msgEnc: MessageEncoding;
   deadlineDaa: bigint;
 }
 
@@ -95,16 +98,6 @@ export interface CreatedAsk {
   minRefund: bigint;
 }
 
-/** Recipient's x-only key derived from their address — Kasia's own trick
- * (their cipher/src/lib.rs): a schnorr address payload IS the x-only key. */
-export function xOnlyFromAddress(address: string): string {
-  const hex = XOnlyPublicKey.fromAddress(new Address(address)).toString();
-  if (!/^[0-9a-f]{64}$/i.test(hex)) {
-    throw new Error(`address does not carry an x-only schnorr key: ${address}`);
-  }
-  return hex;
-}
-
 /** A1 CREATE: lock funds under the ASK covenant; the SAME transaction
  * carries the ask envelope payload (discovery + covenant in one tx). */
 export async function createAsk(
@@ -114,6 +107,9 @@ export async function createAsk(
 ): Promise<CreatedAsk> {
   if (params.amount <= REFUND_FEE_ALLOWANCE) {
     throw new Error("amount must exceed the refund fee allowance");
+  }
+  if (params.message.length > MAX_MESSAGE_CHARS) {
+    throw new Error("message too long");
   }
   const minRefund = params.amount - REFUND_FEE_ALLOWANCE;
   const recipientXOnlyHex = xOnlyFromAddress(params.recipientAddress);
@@ -132,8 +128,8 @@ export async function createAsk(
     recipient: params.recipientAddress,
     deadlineDaa: params.deadlineDaa.toString(),
     minRefund: minRefund.toString(),
-    msgEnc: params.msgEnc,
-    message: params.message,
+    msgEnc: "kasia1",
+    message: encryptKasia1(recipientXOnlyHex, params.message),
   };
   const payloadHex = encodeAskPayload(envelope);
 

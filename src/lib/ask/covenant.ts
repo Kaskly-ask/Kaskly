@@ -11,6 +11,8 @@ import {
   addressFromScriptPublicKey,
   payToAddressScript,
   PublicKey,
+  XOnlyPublicKey,
+  Address,
   type ScriptPublicKey,
 } from "kaspa-wasm";
 import { ASK_PREFIX_BYTES } from "./protocol";
@@ -43,6 +45,17 @@ export function spkToStackBytes(spk: ScriptPublicKey): Uint8Array {
     out[2 + i] = parseInt(script.slice(i * 2, i * 2 + 2), 16);
   }
   return out;
+}
+
+/** A schnorr Kaspa address payload IS the x-only pubkey — Kasia's own
+ * identity trick (their cipher/src/lib.rs). Used for both the covenant
+ * claim key and kasia1 encryption. */
+export function xOnlyFromAddress(address: string): string {
+  const hex = XOnlyPublicKey.fromAddress(new Address(address)).toString();
+  if (!XONLY_RE.test(hex)) {
+    throw new Error(`address does not carry an x-only schnorr key: ${address}`);
+  }
+  return hex;
 }
 
 /** x-only pubkey hex for a keypair-owned public key (hex compressed or

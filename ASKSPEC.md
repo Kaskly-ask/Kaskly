@@ -38,7 +38,7 @@ Protocol constants (v1):
 | `SUBKIND_ASK` | `a` | Ask announcement payloads. |
 | `SUBKIND_REPLY` | `r` | Reply (claim) payloads. |
 | `MAX_PAYLOAD_BYTES` | 16,384 | Whole-tx-payload ceiling, conservative under Kasia's client heuristic (17.7 KiB). The consensus payload bound is not separately verified; clients MUST enforce this limit themselves. |
-| `MAX_MESSAGE_CHARS` | 10,000 | Message ceiling, client-enforced. |
+| `MAX_MESSAGE_CHARS` | 10,000 | Plaintext message ceiling before encryption, client-enforced. |
 | `REFUND_FEE_ALLOWANCE` | 500,000 sompi | See §5.2/§6. |
 | `LOCK_TIME_THRESHOLD` | 500,000,000,000 | Lock times below this are DAA scores (rusty-kaspa `consensus/core/src/constants.rs`). |
 
@@ -61,8 +61,8 @@ namespace prefix followed by structured content
   "recipient":  "<Kaspa address of R>",
   "deadlineDaa":"<decimal string, absolute DAA score>",
   "minRefund":  "<decimal string, sompi>",
-  "msgEnc":     "plain" | "kasia1",
-  "message":    "<UTF-8 text (plain) or hex ciphertext (kasia1)>" }
+  "msgEnc":     "kasia1",
+  "message":    "<hex kasia1 ciphertext, encrypted to R>" }
 ```
 
 ### 2.2 Reply (`r`) — carried by the CLAIM transaction
@@ -70,23 +70,50 @@ namespace prefix followed by structured content
 ```json
 { "v": 1,
   "ref":    "<64-hex txid of the lock transaction>",
-  "msgEnc": "plain" | "kasia1",
-  "message":"<reply text or hex ciphertext>" }
+  "msgEnc": "kasia1",
+  "message":"<hex kasia1 ciphertext, encrypted to S>" }
 ```
 
-`msgEnc: "kasia1"` denotes Kasia's encryption scheme (ephemeral ECDH on
-secp256k1 → HKDF-SHA256 (no salt, empty info) → ChaCha20-Poly1305; wire
-format `nonce(12) || ephemeral pubkey SEC1(33) || ciphertext`, per Kasia
-`cipher/src/lib.rs`). Whether v1 clients MUST support it is decision Q4
-(pending); `plain` is always valid but is permanent public data.
+### 2.2.1 Message encryption — encrypted only
+
+**v1 messages and replies are ALWAYS encrypted** (Q4 decision, human,
+2026-08-03: no plaintext mode exists; privacy is enforced by construction).
+`kasia1` is Kasia's message encryption scheme, reimplemented byte-for-byte
+from `K-Kluster/Kasia cipher/src/lib.rs`:
+
+1. The encryption target's x-only pubkey is the payload of their schnorr
+   Kaspa address, lifted to a full point with **even parity** (x-coordinate
+   ECDH makes the true parity irrelevant).
+2. A fresh ephemeral secp256k1 keypair per message; ECDH shared secret =
+   the **raw x-coordinate** (32 bytes) of the DH point.
+3. Key = HKDF-SHA256(ikm = x-coordinate, salt = none, info = empty,
+   length = 32).
+4. AEAD = ChaCha20-Poly1305, random 96-bit nonce, no AAD.
+5. Wire bytes, hex-encoded into `message`:
+   `nonce(12) ‖ ephemeral pubkey SEC1 compressed(33) ‖ ciphertext‖tag`.
+   (Parsers MUST also accept a legacy 32-byte x-only ephemeral key, lifted
+   even, as Kasia's `from_bytes` does.)
+
+Asks encrypt to the **recipient**; replies encrypt to the **sender**. No
+handshake is needed in either direction — the address alone suffices.
+
+**Compatibility status (stated honestly):** the Kasia repository contains
+no fixed cipher test vectors (only a randomized round-trip test,
+`cipher/src/lib.rs:346-363`, checked 2026-08-03). This spec's reference
+implementation is verified structurally against Kasia's code (every step
+cited) with its own pinned known-answer vector, but cross-implementation
+interop has not been proven against Kasia-produced ciphertext — confirm
+with the Kasia team alongside the Q3 namespace decision.
 
 ### 2.3 Parsing rules
 
 - A payload not starting with `ASK_PREFIX` is not ASK traffic: ignore.
 - A payload with the prefix but an unknown subkind, non-JSON body, missing
   or type-invalid fields, non-decimal numeric strings, a `ref` that is not
-  64 hex chars, or any size over the ceilings: **malformed — reject**; MUST
-  NOT be surfaced as an Ask or a reply.
+  64 hex chars, **any `msgEnc` other than `kasia1` (including `plain`)**, a
+  `message` that is not plausible ciphertext hex (even-length hex, ≥ 61
+  bytes), or any size over the ceilings: **malformed — reject**; MUST NOT
+  be surfaced as an Ask or a reply.
 - Unknown JSON fields MUST be ignored (forward compatibility).
 
 ## 3. The escrow covenant
@@ -271,9 +298,10 @@ refund, late claims are dead; no fee outputs exist in the protocol.
 Not chain-enforced (stated plainly): claim expiry between deadline and
 refund (§8 — mitigated by anyone-can-trigger refunds and the normative
 client rules); payload structure beyond the 15-byte prefix (client
-validation); message privacy (Q4 pending: `plain` messages and replies are
-permanent public data — clients MUST warn before sending; `kasia1`
-encrypts between S and R).
+validation). Message and reply CONTENT is always encrypted between S and R
+(§2.2.1) — but transaction METADATA is permanently public: addresses,
+amounts, deadlines, timing, and the fact that an Ask was answered or
+refunded. Clients SHOULD say so.
 
 No app operator, cosigner, or third party holds any spend path. There are
 no protocol fees (see §5.2). This section mirrors TRUST.md in the

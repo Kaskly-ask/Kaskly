@@ -97,7 +97,41 @@ deviations:
   Phase 3 inbox (flagged so it is not forgotten).
 - [x] Q3 namespace decision: `ciph_msg:1:ask:` provisional, PENDING flag in
       ASKSPEC (human decision recorded above)
-- [ ] Q4 (D7) decision point presented with effort estimates
+- [x] **Q4 decided (human, 2026-08-03): ENCRYPTED ONLY.** kasia1 is the sole
+      valid msgEnc; "plain" is malformed per ASKSPEC §2.3. Rationale: no
+      footgun — privacy by construction, consistent with the encrypted
+      messenger ecosystem ASK extends.
+      Implementation: `src/lib/ask/crypto.ts` — byte-level reimplementation
+      of Kasia's cipher (ephemeral ECDH x-coordinate → HKDF-SHA256 no-salt
+      empty-info → ChaCha20-Poly1305; wire nonce‖SEC1(33)‖ct; legacy 32-byte
+      ephemeral accepted). Facts verified: k256 SharedSecret = raw
+      x-coordinate (docs.rs elliptic-curve SharedSecret); even-parity lift +
+      wire layout from Kasia cipher/src/lib.rs. Libraries: @noble/curves,
+      @noble/hashes, @noble/ciphers v2.2.0.
+      **Vector honesty (per gate instruction): Kasia's repo has NO fixed
+      cipher test vectors — only a randomized round-trip test
+      (cipher/src/lib.rs:346-363). Our compatibility claim is structural
+      (line-by-line, source-cited) + our own pinned KAT (recipient priv=1,
+      ephemeral=2, zero nonce — ECDH intermediates are the standard G.x and
+      2·G constants). Cross-implementation interop against Kasia-produced
+      ciphertext remains UNVERIFIED and is flagged for the Kasia-team
+      conversation (with Q3).**
+      Tests: crypto.test.ts (round-trip via real SDK keys/addresses, parity
+      immunity, legacy form, tamper/wrong-key rejection, pinned KAT);
+      integration re-run fully green with encryption — on-chain ask
+      decrypted with recipient key, on-chain reply decrypted with sender
+      key, plaintext verified absent from payloads. New lifecycle txids:
+      ANSWERED lock `1a8bb02ee6d481c024ca462ad047e32f7935e5b9dd59ecc09dec082b722c03a3`
+      / claim `3f02de726903e2709368254d144c82b0d2b6d867bd9597d4455dcdb1f08b9d60`;
+      REFUNDED lock `4bf4980c769516db2db1342d263c831b4b220fa38142b5d077dfa91f0949d4e7`
+      / refund `0d45a744714c7123213850807ef2b85e7b8e0a0e9ce6c4fb19dd717c6a3daeb3`.
+
+### R4 self-review (Q4 encryption unit)
+
+Diff reviewed against [D7, D8, Q4 gate instruction, §2 payload rules];
+deviations: none. `encryptKasia1Internal` (deterministic) exists solely for
+the pinned KAT and is documented as test-only. protocol.ts, node.ts,
+transactions.ts contain no plaintext path.
 - [ ] TRUST.md current; committed + tagged phase-2
 
 ## Phase 1 results (2026-08-03, testnet-10, node rusty-kaspa 2.0.1 via public wRPC)

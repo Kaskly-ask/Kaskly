@@ -19,6 +19,8 @@ import {
   buildRefundSignatureScript,
   parseAskPayload,
   encodeReplyPayload,
+  encryptKasia1,
+  decryptKasia1,
   ASK_PREFIX,
   REFUND_FEE_ALLOWANCE,
 } from "../../src/lib/ask";
@@ -128,7 +130,7 @@ describe("ASK lifecycle on testnet (A1-A5) + R3 attacks", () => {
       if (parsed) seen.push({ kind: parsed.kind, txid });
     });
 
-    // --- A1 CREATE
+    // --- A1 CREATE (message is encrypted to the recipient inside createAsk)
     const deadlineDaa = (await currentDaaScore(rpc)) + LONG_DEADLINE;
     const created = await createAsk(rpc, NETWORK_ID, {
       senderAddress,
@@ -136,12 +138,18 @@ describe("ASK lifecycle on testnet (A1-A5) + R3 attacks", () => {
       recipientAddress,
       amount: 100_000_000n,
       message: "Integration test ask — please reply",
-      msgEnc: "plain",
       deadlineDaa,
     });
     expect(created.lockTxid).toMatch(/^[0-9a-f]{64}$/);
     const utxo = await waitForUtxo(created.p2shAddress);
     expect(BigInt(utxo.amount)).toBe(100_000_000n);
+    // Encrypted-only (Q4): the envelope must carry kasia1 ciphertext, the
+    // plaintext must not appear, and the RECIPIENT's key must decrypt it.
+    expect(created.envelope.msgEnc).toBe("kasia1");
+    expect(created.envelope.message).not.toContain("Integration");
+    expect(decryptKasia1(created.envelope.message, recipient.privateKey)).toBe(
+      "Integration test ask — please reply"
+    );
 
     // --- A2 NOTIFY: the firehose scanner must surface the ask
     const deadlineMs = Date.now() + 60_000;
@@ -224,13 +232,15 @@ describe("ASK lifecycle on testnet (A1-A5) + R3 attacks", () => {
       expect(msg).toMatch(/not finalized/);
     }
 
-    // --- A3 CLAIM-BY-REPLY (legitimate)
+    // --- A3 CLAIM-BY-REPLY (legitimate; reply encrypted to the SENDER)
     const claimTx = buildClaimTransaction({
       covenantUtxo: utxo,
       redeemScriptHex: created.redeemScriptHex,
       recipientAddress,
       recipientPrivateKeyHex: recipient.privateKey,
-      reply: { v: 1, ref: created.lockTxid, msgEnc: "plain", message: "Reply from the test suite" },
+      lockTxid: created.lockTxid,
+      replyText: "Reply from the test suite",
+      senderAddress,
     });
     const { transactionId: claimTxid } = await rpc.submitTransaction({ transaction: claimTx });
     expect(claimTxid).toMatch(/^[0-9a-f]{64}$/);
@@ -255,7 +265,12 @@ describe("ASK lifecycle on testnet (A1-A5) + R3 attacks", () => {
     expect(parsedReply?.kind).toBe("reply");
     if (parsedReply?.kind === "reply") {
       expect(parsedReply.envelope.ref).toBe(created.lockTxid);
-      expect(parsedReply.envelope.message).toBe("Reply from the test suite");
+      // On-chain reply is ciphertext; only the SENDER's key opens it.
+      expect(parsedReply.envelope.msgEnc).toBe("kasia1");
+      expect(parsedReply.envelope.message).not.toContain("Reply");
+      expect(decryptKasia1(parsedReply.envelope.message, sender.privateKey)).toBe(
+        "Reply from the test suite"
+      );
     }
     recordTxids("answered", { lock: created.lockTxid, claim: claimTxid });
   });
@@ -269,7 +284,6 @@ describe("ASK lifecycle on testnet (A1-A5) + R3 attacks", () => {
       recipientAddress,
       amount: 100_000_000n,
       message: "Integration test ask — will be ignored",
-      msgEnc: "plain",
       deadlineDaa,
     });
     const utxo = await waitForUtxo(created.p2shAddress);
@@ -364,7 +378,12 @@ describe("ASK lifecycle on testnet (A1-A5) + R3 attacks", () => {
         [utxo],
         [{ address: recipientAddress, amount: BigInt(utxo.amount) - REFUND_FEE_ALLOWANCE }],
         0n,
-        encodeReplyPayload({ v: 1, ref: created.lockTxid, msgEnc: "plain", message: "too late" }),
+        encodeReplyPayload({
+          v: 1,
+          ref: created.lockTxid,
+          msgEnc: "kasia1",
+          message: encryptKasia1(xOnlyFromAddress(senderAddress), "too late"),
+        }),
         1
       );
       const sig = createInputSignature(tx, 0, new PrivateKey(recipient.privateKey));

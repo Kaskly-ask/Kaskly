@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   ASK_PREFIX,
-  MAX_MESSAGE_CHARS,
   MAX_PAYLOAD_BYTES,
   encodeAskPayload,
   encodeReplyPayload,
@@ -11,21 +10,25 @@ import {
   type ReplyEnvelope,
 } from "../../src/lib/ask/protocol";
 
+// kasia1 ciphertexts are opaque hex; a shaped dummy (>= 61 bytes) is enough
+// for codec tests. Real crypto is covered in crypto.test.ts.
+const CIPHERTEXT = "ab".repeat(80);
+
 const ask: AskEnvelope = {
   v: 1,
   sender: "kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6",
   recipient: "kaspatest:qredz8z5x6emeypx7y08ujuylp5f8q36k66vap4ffanl847f3wmsqskc374cr",
   deadlineDaa: "534052985",
   minRefund: "99500000",
-  msgEnc: "plain",
-  message: "Would you review my covenant design? 0.5 KAS for 10 minutes.",
+  msgEnc: "kasia1",
+  message: CIPHERTEXT,
 };
 
 const reply: ReplyEnvelope = {
   v: 1,
   ref: "a9ad888565d4aa713a2dd7a3ca368b09f8a46e5ecb0156ebc4ac35f6227ff01c",
-  msgEnc: "plain",
-  message: "Sure — send it over.",
+  msgEnc: "kasia1",
+  message: CIPHERTEXT,
 };
 
 describe("payload codec (ASKSPEC §2)", () => {
@@ -74,9 +77,31 @@ describe("payload codec (ASKSPEC §2)", () => {
     ).toThrow(/malformed/);
   });
 
+  it("rejects any msgEnc other than kasia1 — encrypted only (Q4)", () => {
+    const bad = (s: string) => toHex(new TextEncoder().encode(s));
+    for (const enc of ["plain", "none", "kasia2", ""]) {
+      const env = { ...ask, msgEnc: enc };
+      expect(() =>
+        parseAskPayload(bad(`${ASK_PREFIX}a:${JSON.stringify(env)}`))
+      ).toThrow(/malformed/);
+    }
+    // plaintext-looking message under kasia1 is malformed too
+    const notHex = { ...ask, message: "hello there, this is plaintext!" };
+    expect(() =>
+      parseAskPayload(bad(`${ASK_PREFIX}a:${JSON.stringify(notHex)}`))
+    ).toThrow(/malformed/);
+    // too-short "ciphertext" cannot even hold nonce+key+tag
+    const tooShort = { ...ask, message: "ab".repeat(30) };
+    expect(() =>
+      parseAskPayload(bad(`${ASK_PREFIX}a:${JSON.stringify(tooShort)}`))
+    ).toThrow(/malformed/);
+    // encoder enforces the same
+    expect(() => encodeAskPayload(notHex as never)).toThrow(/kasia1/);
+  });
+
   it("enforces size limits (R3: oversized payload)", () => {
-    const big = { ...ask, message: "x".repeat(MAX_MESSAGE_CHARS + 1) };
-    expect(() => encodeAskPayload(big)).toThrow(/too long/);
+    const big = { ...ask, message: "ab".repeat(MAX_PAYLOAD_BYTES) };
+    expect(() => encodeAskPayload(big)).toThrow(/exceeds/);
     const nearLimitJunk = "y".repeat(MAX_PAYLOAD_BYTES * 2);
     expect(parseAskPayload(toHex(new TextEncoder().encode(nearLimitJunk)))).toBeNull();
   });

@@ -23,9 +23,23 @@ export const MAX_MESSAGE_CHARS = 10000;
  * at least (amount - this) back to the sender. */
 export const REFUND_FEE_ALLOWANCE = 500_000n;
 
-/** Message encoding marker (Q4/D7 pending): "plain" now; "kasia1" reserved
- * for Kasia's ECDH+HKDF+ChaCha20-Poly1305 scheme. */
-export type MessageEncoding = "plain" | "kasia1";
+/** Message encoding. Q4 decision (human, 2026-08-03): ENCRYPTED ONLY —
+ * "kasia1" (Kasia's ECDH+HKDF-SHA256+ChaCha20-Poly1305 scheme, see
+ * crypto.ts) is the sole valid encoding in v1. A payload with any other
+ * msgEnc (including "plain") is malformed per ASKSPEC §2.3. */
+export type MessageEncoding = "kasia1";
+
+/** Minimum kasia1 blob: nonce(12)+ephemeral(33)+tag(16) → 61 bytes hex. */
+const MIN_KASIA1_HEX_CHARS = 122;
+const HEX_RE = /^[0-9a-fA-F]+$/;
+
+function isValidKasia1MessageHex(message: string): boolean {
+  return (
+    message.length >= MIN_KASIA1_HEX_CHARS &&
+    message.length % 2 === 0 &&
+    HEX_RE.test(message)
+  );
+}
 
 export interface AskEnvelope {
   v: 1;
@@ -38,7 +52,7 @@ export interface AskEnvelope {
   /** Minimum refund amount in sompi (decimal string) pinned by the covenant. */
   minRefund: string;
   msgEnc: MessageEncoding;
-  /** Message: UTF-8 text (plain) or hex ciphertext (kasia1). */
+  /** Message: hex kasia1 ciphertext (encrypted to the RECIPIENT's key). */
   message: string;
 }
 
@@ -47,6 +61,7 @@ export interface ReplyEnvelope {
   /** The lock txid this reply claims. */
   ref: string;
   msgEnc: MessageEncoding;
+  /** Hex kasia1 ciphertext (encrypted to the SENDER's key). */
   message: string;
 }
 
@@ -79,14 +94,18 @@ function encodePayload(subkind: string, envelope: object): string {
 
 /** Build the hex tx payload announcing an Ask (goes on the LOCK tx). */
 export function encodeAskPayload(env: AskEnvelope): string {
-  if (env.message.length > MAX_MESSAGE_CHARS) throw new Error("message too long");
+  if (!isValidKasia1MessageHex(env.message)) {
+    throw new Error("message must be a kasia1 ciphertext (hex)");
+  }
   return encodePayload(SUBKIND_ASK, env);
 }
 
 /** Build the hex tx payload carrying a reply (goes on the CLAIM tx; must
  * keep the covenant-enforced prefix). */
 export function encodeReplyPayload(env: ReplyEnvelope): string {
-  if (env.message.length > MAX_MESSAGE_CHARS) throw new Error("message too long");
+  if (!isValidKasia1MessageHex(env.message)) {
+    throw new Error("message must be a kasia1 ciphertext (hex)");
+  }
   return encodePayload(SUBKIND_REPLY, env);
 }
 
@@ -150,9 +169,9 @@ function validateAskEnvelope(x: unknown): AskEnvelope {
     !DECIMAL.test(deadlineDaa) ||
     typeof minRefund !== "string" ||
     !DECIMAL.test(minRefund) ||
-    (msgEnc !== "plain" && msgEnc !== "kasia1") ||
+    msgEnc !== "kasia1" ||
     typeof message !== "string" ||
-    message.length > MAX_MESSAGE_CHARS
+    !isValidKasia1MessageHex(message)
   ) {
     throw new Error("malformed ask envelope");
   }
@@ -166,9 +185,9 @@ function validateReplyEnvelope(x: unknown): ReplyEnvelope {
     v !== 1 ||
     typeof ref !== "string" ||
     !/^[0-9a-fA-F]{64}$/.test(ref) ||
-    (msgEnc !== "plain" && msgEnc !== "kasia1") ||
+    msgEnc !== "kasia1" ||
     typeof message !== "string" ||
-    message.length > MAX_MESSAGE_CHARS
+    !isValidKasia1MessageHex(message)
   ) {
     throw new Error("malformed reply envelope");
   }
