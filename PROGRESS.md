@@ -76,7 +76,25 @@ day one. tn10.kaspa.stream confirmed as the working explorer for C4 links
       RPC connection (exact minRefund at sender, covenant address drained).
       Note: sender-side REST path is intermittently ECONNRESET-flaky from
       this machine; refund verification deliberately uses the UTXO set.
-- [ ] ASKSPEC.md v0.1 (payload format, lifecycle, escrow, client rules)
+- [x] ASKSPEC.md v0.1 draft written from proven code (payload format,
+      covenant with encoding notes + citations, lock/claim/refund
+      construction, discovery, deadline semantics + normative client rules,
+      error table, trust model, versioning; Q3 PENDING and Q5 placeholders
+      marked). TRUST.md and TRACE.md brought current.
+
+### R4 self-review (Phase 2 library + spec unit)
+
+Diff reviewed against [A1-A5, C1-C3, P1-P3, P5, P6, D1, D2, D6, D9, R2, R3];
+deviations:
+- The claim branch does not pin outputs (recipient chooses) — deliberate,
+  documented in ASKSPEC §5; partial-amount concerns are void by UTXO
+  semantics (§9).
+- R3 "claim after deadline" is chain-rejected only post-refund (F1) — per
+  the amended D9, with normative client rules in §8. Not a hidden deviation;
+  human-approved framing.
+- Discovery scanner filters by namespace prefix but does not yet verify
+  announcement-vs-escrow match (§4 requirement) — that check lands with the
+  Phase 3 inbox (flagged so it is not forgotten).
 - [x] Q3 namespace decision: `ciph_msg:1:ask:` provisional, PENDING flag in
       ASKSPEC (human decision recorded above)
 - [ ] Q4 (D7) decision point presented with effort estimates
