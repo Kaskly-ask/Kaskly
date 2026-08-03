@@ -12,10 +12,10 @@
 - [x] Ground truth: covenant testnet identified (TN10 working default) + endpoints recorded (see below; faucet URL still REPORTED-only)
 - [x] Ground truth: Kasia payload namespace / encryption / discovery documented from their repo (see below)
 - [x] Next.js + TypeScript + Tailwind scaffold (Node v24.18.1, npm 11.16.0)
-- [ ] Prisma + SQLite with schema per brief §3.3
-- [ ] rusty-kaspa WASM SDK installed, version pinned, exposed script/covenant types enumerated from the installed package
-- [ ] App boots; DB migrates
-- [ ] Committed + tagged `phase-0`
+- [x] Prisma + SQLite with schema per brief §3.3 (Prisma 7.9.1; migration `20260803122023_init` applied)
+- [x] rusty-kaspa WASM SDK installed, version pinned (`kaspa-wasm@2.0.1` vendored, `file:` pin), script/covenant types enumerated from the installed `.d.ts` (see WASM SDK section)
+- [x] App boots (production build green; `next start` served HTTP 200); DB migrates
+- [x] Committed + tagged `phase-0`
 
 ## Session log
 
@@ -32,6 +32,23 @@
 - Scaffolded Next.js (App Router) + TypeScript + Tailwind via create-next-app (template `app-tw`, npm, no git) — pending move from `ask-client-tmp/` into repo root.
 - Both research agents returned; findings recorded below with sources and confidence labels.
 - Key ground-truth takeaways: (1) npm's kaspa packages are stale (0.13.0, Nov 2023) — must vendor `kaspa-wasm32-sdk-v2.0.1.zip` from the rusty-kaspa v2.0.1 GitHub release; (2) TN10 is the verified post-Toccata testnet (working default; TN12 = covenant dev-staging, endpoints unverified); (3) no published precedent exists for an ASK-shaped two-path covenant — Phase 1 spike is load-bearing; (4) Kasia's payload convention is `ciph_msg:1:<kind>:...` and their encryption needs no handshake (address = x-only pubkey).
+- Recorded Q1 context from the human (KaChat dev / Kaspa Silver quote — see section above).
+- Scaffold moved to repo root. create-next-app generated its own CLAUDE.md (a pointer) — discarded; kept its `AGENTS.md` (warns Next.js 16 has breaking changes vs. training data; docs ship in `node_modules/next/dist/docs/` — aligns with R6).
+- Prisma 7.9.1: connection URL moved to `prisma.config.ts` (Prisma 7 change — `url` in schema.prisma is no longer supported; confirmed at prisma.io/docs/orm/reference/prisma-config-reference). SQLite `dev.db` at repo root, gitignored. Statuses are strings (Prisma+SQLite has no enums) validated at the repository layer.
+- Vendored the official WASM SDK v2.0.1 (zip SHA256 above), pinned via `file:` dependency; enumerated covenant/script types from the installed `.d.ts` (see WASM SDK section).
+- tsconfig: target ES2020 (BigInt literals needed for sompi), `vendor/` excluded from type-check; package renamed `ask-reference-client`.
+- Verified boot: `next build` green (Next.js 16.2.12); `next start` answered HTTP 200 on localhost:3000.
+
+### R4 self-review (Phase 0 scaffold unit)
+
+Diff reviewed against [D10, T1, T2, T3, T4, §3.3]; deviations:
+- **amount stored as `amount_sompi BigInt`** instead of the brief's literal
+  `amount_kas` — money is never stored as a float; UI converts to KAS. Flagged
+  for human awareness; spec (§3.3) intent (thin cache) is preserved.
+- `deadline` stored as BigInt with semantics deliberately deferred to ASKSPEC.md
+  (D9 says exact semantics are defined from real chain capabilities in Phase 1/2).
+- No other deviations. No code exists that maps to no spec ID (scaffold
+  boilerplate maps to T1; schema to §3.3; vendor pin to C1/T3).
 
 ## Ground truth (every claim carries a source, per R6)
 
@@ -128,10 +145,37 @@ unknown._
   `OpTxOutputSpk=0xc3`, `OpCat=0x7e`, `OpCheckSigFromStack=0xd7`, plus
   `OpCheckLockTimeVerify=0xb0`/`OpCheckSequenceVerify=0xb1`. Source: fetched
   `crypto/txscript/src/wasm/opcodes.rs`.
-- **UNVERIFIED**: whether higher-level covenant helpers (beyond ScriptBuilder +
-  Opcodes) exist in the shipped SDK — `wasm/CHANGELOG.md` (fetched) doesn't mention
-  covenants. **Must be enumerated from the installed package's `.d.ts` files**
-  (Phase 0 task below).
+- **VERIFIED from the INSTALLED package** (2026-08-03; source:
+  `vendor/kaspa-wasm32-sdk/nodejs/kaspa/kaspa.d.ts`, package `kaspa-wasm@2.0.1`
+  from `kaspa-wasm32-sdk-v2.0.1.zip`, SHA256
+  `7EAFFAC9CD920EF2FDF540C6E10F2A2B7761170EBC62EC57DFA0F71C64567A71`, pinned in
+  package.json as `"kaspa-wasm": "file:vendor/kaspa-wasm32-sdk/nodejs/kaspa"`):
+  - `enum Opcodes` includes the full KIP-17 set: `OpCat=126`,
+    `OpCheckLockTimeVerify=176`, `OpTxLockTime=181`, `OpTxPayloadSubstr=184`,
+    `OpTxInputDaaScore=192`, `OpTxOutputSpk=195`, `OpTxOutputSpkLen=199`,
+    `OpTxOutputSpkSubstr=200`, `OpCheckSigFromStack=215`,
+    `OpCheckSigFromStackECDSA=216` (kaspa.d.ts:581-686).
+  - `class ScriptBuilder`: `addOp`, `addOps`, `addData`, `addI64`,
+    `addLockTime(bigint)`, `addSequence(bigint)`, `createPayToScriptHashScript()`,
+    `encodePayToScriptHashSignatureScript(signature)`, `fromScript`, `drain`
+    (kaspa.d.ts:7031+). P2SH covenant flow matches rusty-kaspa's covenants.rs
+    example (script pushed in signature script).
+  - **Covenant-native types exist**: `covenantId(genesis_outpoint, auth_outputs)`
+    (kaspa.d.ts:58), `class CovenantBinding(authorizing_input, covenant_id)`
+    (:5439), `class GenesisCovenantGroup` (:5676), `ICovenantBinding`,
+    `IGenesisCovenantGroup`, `ICovenantAuthorizedOutput`;
+    `PaymentOutput.withCovenant(address, amount, covenant)` (:6009);
+    `TransactionOutput` constructor takes optional `covenant` (:7295).
+  - Payload support: `createTransaction(utxo_entries, outputs, priority_fee,
+    payload?, sig_op_count?)` (:173); `ITransaction.payload: HexString`.
+  - RPC: `subscribeBlockAdded()` (:6729), **`getUtxoReturnAddress()` (:6771 — now
+    in the OFFICIAL SDK; Kasia's fork requirement is obsolete as of 2.0.1)**,
+    `getDaaScoreTimestampEstimate()` (:6860), `Resolver` class for the public
+    node network.
+  - Plan-B-relevant: `PSKT`/`PSKB` classes (partially-signed Kaspa
+    transactions), `createInputSignature`, `signScriptHash`.
+  - The SDK zip also ships `docs/` (TypeDoc) and `examples/` (kept locally,
+    not committed; re-extract the zip to restore).
 
 ### Kasia conventions (D6, D7)
 
@@ -206,9 +250,30 @@ existing Kasia client would see the prefix) or a parallel `ask:1:...` namespace
 (clean separation; invisible to current Kasia clients). This shapes Q3 and should
 be raised with the KaChat/Kasia teams.
 
+## Q1 context from the human (recorded 2026-08-03)
+
+Conversation with the KaChat dev — **Kaspa Silver (@KaspaSilver on X)**, who is
+also one of the four named Kasia maintainers (see Kasia ground truth below):
+
+> "The idea sounds great! I think this might utilize covenants to make it
+> possible. There will be a dedicated covenants update for KaChat and this can
+> seriously be looked into more. Right now all focus is getting the foundation
+> built with the most expected features that should be present for anyone using
+> KaChat."
+
+Implications for this project:
+- Independent validation of the covenant-first design (D5) from the adoption
+  target itself.
+- KaChat has a **dedicated covenants update planned** — ASK should be positioned
+  as ready-made material for that update (spec + proven testnet reference
+  implementation), which is exactly the DEL-1/DEL-2/DEL-3 shape.
+- Their near-term focus is core KaChat features, not covenants — so nothing is
+  blocked on them, and the pitch (Phase 4) should minimize their integration
+  lift: self-contained spec, working reference code, recorded lifecycle txids.
+
 ## Open questions for the human (Section 10)
 
-- Q1: Anything the KaChat dev already shared about covenant specifics / Kasia payload plans / preferred integration shape? Paste here before Phase 1.
+- Q1: ~~KaChat dev input~~ — answered; recorded above.
 - Q3: Final protocol namespace + name (placeholder `ask:1:`) — needed before ASKSPEC.md v0.1 freezes in Phase 2.
 - Q4: D7 reply privacy decision — deferred to Phase 2 gate.
 - Q5: Open-source license + attribution — needed before Phase 4.

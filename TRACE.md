@@ -19,7 +19,7 @@ Status values: `unstarted` | `built` | `tested` | `verified`
 | D7 | Reply privacy decision (encrypted vs plaintext+warning) | — | — | unstarted |
 | D8 | Asks private between sender and receiver | — | — | unstarted |
 | D9 | Sender sets amount/message/deadline; 100% refunds; late replies rejected | — | — | unstarted |
-| D10 | Testnet only; correct covenant testnet verified | — | — | unstarted |
+| D10 | Testnet only; correct covenant testnet verified | .env.example (testnet-10 default; no mainnet), PROGRESS.md ground truth | — | built |
 | D11 | Out-of-scope list enforced (parked in IDEAS.md) | IDEAS.md | — | built |
 
 ## Lifecycle (A)
@@ -44,7 +44,7 @@ Status values: `unstarted` | `built` | `tested` | `verified`
 
 | ID | Summary | Implementation | Tests | Status |
 |----|---------|----------------|-------|--------|
-| C1 | Pinned official WASM SDK; wRPC detection; read installed types, never guess | — | — | unstarted |
+| C1 | Pinned official WASM SDK; wRPC detection; read installed types, never guess | package.json + vendor/ (kaspa-wasm@2.0.1 `file:` pin; types enumerated — see PROGRESS.md). wRPC detection not built yet | — | unstarted |
 | C2 | Escrow properties (lock/claim-with-reply/timeout/no third party/no fees) | — | — | unstarted |
 | C3 | Implementation honesty gate (real capabilities, cited; Plan B trigger documented) | — | — | unstarted |
 | C4 | Explorer link for every lock/claim/refund tx | — | — | unstarted |

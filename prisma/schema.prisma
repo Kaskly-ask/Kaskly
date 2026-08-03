@@ -1,0 +1,36 @@
+// ASK data model — brief §3.3.
+// The chain is the source of truth; this DB is an index/cache only. Every
+// status must be derivable from chain state ("rebuild from chain" check).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Status values (SQLite via Prisma has no native enums; the repository layer
+// validates): open | answered | refunded | expired_pending_refund
+model Ask {
+  id                      String   @id @default(cuid())
+  askRef                  String   @unique @map("ask_ref")
+  senderAddress           String   @map("sender_address")
+  recipientAddress        String   @map("recipient_address")
+  // Amount held in sompi (1 KAS = 100_000_000 sompi) as an integer — money is
+  // never stored as a float. UI converts to KAS for display.
+  amountSompi             BigInt   @map("amount_sompi")
+  messageCiphertextOrText String   @map("message_ciphertext_or_text")
+  // Deadline value; DAA-score vs timestamp semantics are fixed by ASKSPEC.md
+  // from real chain capabilities (D9) in Phase 1/2.
+  deadline                BigInt
+  lockTxid                String   @map("lock_txid")
+  claimTxid               String?  @map("claim_txid")
+  refundTxid              String?  @map("refund_txid")
+  status                  String
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  @@index([recipientAddress])
+  @@index([senderAddress])
+  @@map("asks")
+}

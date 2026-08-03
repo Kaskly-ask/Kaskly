@@ -1,9 +1,17 @@
 # dependencies
 node_modules/
+/.pnp
+.pnp.*
 
 # next.js
-.next/
-out/
+/.next/
+/out/
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+# testing
+/coverage
 
 # env & secrets — never commit funded keys (brief L5)
 .env
@@ -11,12 +19,23 @@ out/
 !.env.example
 *.key
 *.seed
+*.pem
 
 # prisma / sqlite
-prisma/*.db
-prisma/*.db-journal
+*.db
+*.db-journal
+
+# vendored SDK: only nodejs/kaspa (the pinned file: dependency) is committed.
+# Everything else from kaspa-wasm32-sdk-v2.0.1.zip stays local; re-extract the
+# zip (sha256 recorded in PROGRESS.md) to restore docs/examples/web variants.
+vendor/*.zip
+vendor/kaspa-wasm32-sdk/docs/
+vendor/kaspa-wasm32-sdk/examples/
+vendor/kaspa-wasm32-sdk/web/
+vendor/kaspa-wasm32-sdk/nodejs/kaspa-dev/
 
 # misc
 .DS_Store
 *.log
-coverage/
+npm-debug.log*
+.vercel
