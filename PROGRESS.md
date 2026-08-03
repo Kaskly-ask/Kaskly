@@ -2,7 +2,51 @@
 
 ## Current phase
 
-**Phase 2 — Protocol spec + core lifecycle** (in progress)
+**Phase 3 — Reference client. APPROVED TO START (Phase 2 gate passed);
+not yet begun.**
+
+### Phase 2 gate decision (human, 2026-08-03)
+
+**Phase 2 APPROVED.** All acceptance criteria met (see Phase 2 checklist
+below): lifecycle from automated tests, three terminal states with txids,
+R2 dual verification, R3 attack set green, ASKSPEC v0.1 consistent with
+code, TRUST.md current, tagged `phase-2` (commit `86d5cc3`).
+
+### Notes for the next session (R7 ritual)
+
+1. Read this file + TRACE.md, then run `npm test` (16 unit tests, fast) —
+   confirm green before new work. `npm run test:integration` re-proves the
+   TN10 lifecycle (~2 min, costs ~0.02 TKAS in fees per run).
+2. **`spike/.keys.json` is gitignored and holds the FUNDED testnet keys**
+   (sender `kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6`,
+   balance ≈ 1,990 TKAS after all spikes/tests). Do not delete it; the
+   integration suite reads it.
+3. Node.js v24.18.1 is installed system-wide; a fresh terminal has it on
+   PATH (this session needed explicit `$env:ProgramFiles\nodejs` prefixes
+   only because it predated the install).
+4. Networking quirks from this machine: public TN10 wRPC nodes are flaky —
+   `connectRpc` retries resolver picks (optionally pin via
+   `KASPA_WRPC_URL`); REST `api-tn10.kaspa.org` intermittently ECONNRESETs
+   (tests already retry / use UTXO-set verification).
+5. Vendored SDK: only `vendor/kaspa-wasm32-sdk/nodejs/kaspa` is committed;
+   re-extract the zip (SHA256 in ground truth below) for docs/examples.
+
+### Phase 3 checklist (per brief §9)
+
+- [ ] Screens S1-S3 wired to `src/lib/ask`: COMPOSE (address/KNS, message,
+      amount, deadline picker w/ 7-day default, TESTNET badge, honesty line
+      from TRUST.md), INBOX (list + countdown + reply-to-claim), SENT
+      (status states + countdown + explorer links to tn10.kaspa.stream)
+- [ ] Wallet connect per §3.2 (signature-based ownership proof; local key
+      generation OK for testnet; keys never server-side)
+- [ ] Inbox MUST verify announcement reproduces the funded P2SH (ASKSPEC
+      §4) — carried forward from Phase 2 R4 review
+- [ ] Normative client rules live: auto-broadcast refund at deadline;
+      refuse late claim construction with clean "deadline passed" state
+- [ ] DB as cache only + "rebuild from chain" check (§3.3)
+- [ ] Input hardening: size limits, XSS-inert rendering of messages/replies
+- [ ] Human end-to-end test on two real wallets (acceptance)
+- [ ] TRACE.md S1-S3 rows verified; committed + tagged `phase-3`
 
 ### Phase 1 gate decision (human, 2026-08-03)
 
@@ -254,7 +298,7 @@ the lock explicitly.
 
 ## Session log
 
-### 2026-08-03 — Session 1
+### 2026-08-03 — Session 1 (Phases 0-2, all gates passed)
 
 - Read CLAUDE.md brief in full; began Phase 0.
 - `git init` (branch `main`).
