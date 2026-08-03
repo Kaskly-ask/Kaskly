@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "kaspa-wasm": { browser: "kaspa-wasm-web" },
     },
+    // The web SDK build carries wasm-bindgen's Node-detection shims —
+    // dynamic `require(string)` calls that never execute in a browser but
+    // trip Turbopack's static resolution (kaspa.js:14709-14720).
+    ignoreIssue: [{ path: "**/vendor/**" }],
   },
 };
 

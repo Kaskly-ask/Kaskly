@@ -339,6 +339,34 @@ the lock explicitly.
   architecture decision above.
 - Phase 3 build begun: web SDK wiring → wallet layer → S1-S3 screens →
   cache/rebuild → hardening.
+- Web SDK wiring committed green (see architecture decision above). One
+  bundler finding: the web kaspa.js carries wasm-bindgen Node-detection
+  shims (dynamic `require(string)`, kaspa.js:14709-14720) that never run
+  in a browser but fail Turbopack's static resolution; suppressed with
+  `turbopack.ignoreIssue` scoped to `**/vendor/**` (our own code's issues
+  still fail the build). Verified `next build` green with the client shell
+  importing the SDK.
+- Wallet layer + app shell built: browser-only keys (generate /
+  import, localStorage `kaskly.wallet.v1`, testnet-only and labeled as
+  such in the UI), connect-time signature ownership proof
+  (signMessage/verifyMessage, verified from installed kaspa.d.ts:69/74),
+  shared chain context (single lazy wRPC connection + 5s DAA-score
+  clock), Kaskly header (wordmark placeholder, TESTNET badge, wallet
+  panel with balance), dark/teal theme per brief §5, config guard that
+  refuses any non-testnet network id (D10/T4).
+
+### R4 self-review (Phase 3: web SDK wiring + wallet/shell unit)
+
+Diff reviewed against [D4, D10, T4, §3.2 wallet, §5 design, C4 partial
+(explorer URL util)]; deviations:
+- Private key persists in browser localStorage so the wallet survives
+  reload — acceptable for a TESTNET reference client and stated in the
+  wallet panel UI; would be wrong for mainnet (out of scope, D10). TRUST.md
+  gets a line when Phase 3 TRUST updates land (hardening unit).
+- `turbopack.ignoreIssue` suppresses all diagnostics from vendor/ files
+  (path-only match; title-scoped match did not suppress the error) —
+  scoped so first-party code issues still fail builds.
+- No other deviations; no code maps to no spec ID.
 
 ### 2026-08-03 — Session 1 (Phases 0-2, all gates passed)
 
