@@ -8,6 +8,7 @@ import { useWallet } from "@/lib/wallet";
 import { useChain } from "@/lib/chain";
 import { sendAsk } from "@/lib/asks-client";
 import { isKnsName, resolveKns } from "@/lib/kns";
+import { setNote } from "@/lib/local-notes";
 import { DAA_PER_SECOND, parseKas } from "@/lib/config";
 import { ExplorerLink } from "@/components/ask-card";
 import { MAX_MESSAGE_CHARS } from "@/lib/ask/protocol";
@@ -60,6 +61,9 @@ export default function ComposePage() {
         message,
         deadlineDaa,
       });
+      // The chain copy is encrypted to the recipient — keep the author's
+      // plaintext locally so Sent can display it (never server-side).
+      setNote(record.askRef, "message", message);
       setSentTxid(record.lockTxid);
       setPhase("done");
       setMessage("");
