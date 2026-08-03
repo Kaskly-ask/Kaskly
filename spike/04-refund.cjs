@@ -76,10 +76,11 @@ if (!name) {
     await rpc.disconnect();
   }
 })().catch((e) => {
-  if (forceEarly) {
-    console.log("EXPECTED REJECTION (early refund):", e.message || e);
+  const { isChainRejection } = require("./lib.cjs");
+  if (forceEarly && isChainRejection(e)) {
+    console.log("EXPECTED CHAIN REJECTION (early refund):", e.message || e);
   } else {
-    console.error("FAILED:", e);
+    console.error("FAILED (not a chain rejection):", e);
     process.exit(1);
   }
 });

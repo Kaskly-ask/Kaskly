@@ -19,6 +19,9 @@ const args = process.argv.slice(2);
 const name = args[0];
 const reply = args.includes("--key") ? args[1] : args[1] || "yes, let's talk!";
 const wrongKey = args.includes("--key") && args[args.indexOf("--key") + 1] === "sender";
+// R3 attack: claim WITHOUT the reply payload (expect chain rejection via
+// the OpTxPayloadSubstr prefix check in the claim branch).
+const noPayload = args.includes("--no-payload");
 if (!name) {
   console.error("usage: node spike/03-claim.cjs <name> [replyText] [--key sender|recipient]");
   process.exit(2);
@@ -37,7 +40,9 @@ if (!name) {
     const utxo = utxos[0];
     console.log("spending covenant UTXO:", utxo.outpoint.transactionId, "amount:", utxo.amount);
 
-    const payloadHex = Buffer.from(ASK_PREFIX + reply, "utf8").toString("hex");
+    const payloadHex = noPayload
+      ? undefined
+      : Buffer.from(ASK_PREFIX + reply, "utf8").toString("hex");
     const recipientAddress = recipient.toAddress(NETWORK_ID).toString();
     const outAmount = BigInt(utxo.amount) - FEE_ALLOWANCE;
     const tx = createTransaction(
@@ -53,8 +58,11 @@ if (!name) {
     tx.inputs[0].signatureScript = buildSpendSignatureScript(ask.redeemScript, sig, true);
 
     const { transactionId } = await rpc.submitTransaction({ transaction: tx });
-    console.log(wrongKey ? "UNEXPECTED: wrong-key claim ACCEPTED:" : "claim txid:", transactionId);
-    if (wrongKey) process.exit(1);
+    if (wrongKey || noPayload) {
+      console.log("UNEXPECTED: attack claim ACCEPTED:", transactionId);
+      process.exit(1);
+    }
+    console.log("claim txid:", transactionId);
     const asks = loadAsks();
     asks[name].claimTxid = transactionId;
     asks[name].spentOutpoint = {
@@ -68,10 +76,12 @@ if (!name) {
     await rpc.disconnect();
   }
 })().catch((e) => {
-  if (wrongKey) {
-    console.log("EXPECTED REJECTION (wrong-key claim):", e.message || e);
+  const { isChainRejection } = require("./lib.cjs");
+  if ((wrongKey || noPayload) && isChainRejection(e)) {
+    const which = wrongKey ? "wrong-key claim" : "no-payload claim";
+    console.log(`EXPECTED CHAIN REJECTION (${which}):`, e.message || e);
   } else {
-    console.error("FAILED:", e);
+    console.error("FAILED (not a chain rejection):", e);
     process.exit(1);
   }
 });

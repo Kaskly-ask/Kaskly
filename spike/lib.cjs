@@ -12,19 +12,42 @@ const KEYS_FILE = path.join(__dirname, ".keys.json");
 
 async function connect() {
   const { RpcClient, Resolver, Encoding } = kaspa;
-  const url = process.env.KASPA_WRPC_URL || "";
-  const rpc = url
-    ? new RpcClient({ url, encoding: Encoding.Borsh, networkId: NETWORK_ID })
-    : new RpcClient({
-        resolver: new Resolver(),
-        encoding: Encoding.Borsh,
-        networkId: NETWORK_ID,
+  const pinned = process.env.KASPA_WRPC_URL || "";
+  let lastErr;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    // Try the pinned URL first (if any), then fall back to resolver picks.
+    const usePinned = pinned && attempt === 0;
+    const rpc = usePinned
+      ? new RpcClient({ url: pinned, encoding: Encoding.Borsh, networkId: NETWORK_ID })
+      : new RpcClient({
+          resolver: new Resolver(),
+          encoding: Encoding.Borsh,
+          networkId: NETWORK_ID,
+        });
+    try {
+      await rpc.connect({
+        strategy: kaspa.ConnectStrategy.Fallback,
+        timeoutDuration: 15000,
       });
-  await rpc.connect({
-    strategy: kaspa.ConnectStrategy.Fallback,
-    timeoutDuration: 30000,
-  });
-  return rpc;
+      const info = await rpc.getServerInfo();
+      if (!info.isSynced || !info.hasUtxoIndex) {
+        throw new Error(`node unusable (synced=${info.isSynced}, utxoindex=${info.hasUtxoIndex})`);
+      }
+      return rpc;
+    } catch (e) {
+      lastErr = e;
+      try { await rpc.disconnect(); } catch {}
+      console.error(`connect attempt ${attempt + 1} failed: ${e.message || e}`);
+    }
+  }
+  throw lastErr;
+}
+
+// True only for a real node-side transaction rejection — connection
+// failures and local errors must NOT be mistaken for chain rejections (R6).
+function isChainRejection(e) {
+  const msg = String((e && e.message) || e);
+  return msg.includes("Rejected transaction") || msg.includes("RPC Server (remote error)");
 }
 
 function loadKeys() {
@@ -89,10 +112,18 @@ function xOnlyHex(keypair) {
 
 // Signature script for spending the P2SH: push sig, push branch selector,
 // push redeem script (last push is the redeem script per Kaspa P2SH rules).
+// NOTE (verified empirically): createInputSignature returns a PUSH-ENCODED
+// signature-script fragment (e.g. 0x41 + 65 bytes of sig||hashtype), not a
+// raw signature — strip the push prefix before re-pushing via addData.
 function buildSpendSignatureScript(redeemScript, signatureHex, claimBranch) {
   const { ScriptBuilder } = kaspa;
+  const sigBytes = Buffer.from(signatureHex, "hex");
+  let rawSig = sigBytes;
+  if (sigBytes.length >= 2 && sigBytes[0] === sigBytes.length - 1 && sigBytes[0] <= 75) {
+    rawSig = sigBytes.subarray(1); // strip canonical small-data push prefix
+  }
   const b = new ScriptBuilder()
-    .addData(Buffer.from(signatureHex, "hex"))
+    .addData(rawSig)
     .addData(claimBranch ? Buffer.from([1]) : Buffer.from([]))
     .addData(Buffer.from(redeemScript.drain ? redeemScript.drain() : redeemScript, "hex"));
   return b.drain();
@@ -120,6 +151,7 @@ module.exports = {
   ASK_PREFIX,
   FEE_ALLOWANCE,
   connect,
+  isChainRejection,
   loadKeys,
   buildAskRedeemScript,
   buildSpendSignatureScript,

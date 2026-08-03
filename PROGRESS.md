@@ -2,7 +2,111 @@
 
 ## Current phase
 
-**Phase 0 — Scaffold + Ground Truth** (in progress)
+**Phase 1 — Covenant feasibility spike: COMPLETE, outcome GREEN (with one
+documented capability boundary). STOPPED at the human gate (Q2).**
+
+## Phase 1 results (2026-08-03, testnet-10, node rusty-kaspa 2.0.1 via public wRPC)
+
+The question: can "spendable by key R with an attached reply payload, OR by
+key S after deadline" be expressed and executed with current tooling?
+**Answer: YES — all required behaviors demonstrated on-chain.**
+
+The covenant (P2SH redeem script, built with `ScriptBuilder` from the
+installed SDK; see `spike/lib.cjs`):
+
+```
+OpIf                                          // claim branch (selector 0x01)
+  0 15 OpTxPayloadSubstr                      // payload[0..15]
+  "ciph_msg:1:ask:" OpEqualVerify             // must equal ask prefix
+  <R x-only pubkey> OpCheckSig                // recipient signature
+OpElse                                        // refund branch (selector empty)
+  <deadline DAA score> OpCheckLockTimeVerify  // Kaspa CLTV POPS its arg
+  <S x-only pubkey> OpCheckSig                // sender signature
+OpEndIf
+```
+
+### Lifecycle txids (all verified accepted on TN10)
+
+| Event | txid |
+|---|---|
+| Lock (claimtest, 1 KAS) | `a9ad888565d4aa713a2dd7a3ca368b09f8a46e5ecb0156ebc4ac35f6227ff01c` |
+| **Claim-by-reply** (atomic: spend to R + reply payload) | `7b99b73063a1cb329dfd4d32c67a458f31dfcbc7a61284ed38d4f5b1d93b959f` |
+| Lock (refundtest, 1 KAS) | `200084484b331662c2a8da7139db8b006927ebce5c8cbfd058196dfb38226290` |
+| **Timeout refund** (to S after deadline) | `a2ec1e9354cd7eb3242c25cc2e61c2d389ea94e842222317e114457f55672e66` |
+| Lock (racetest, 1 KAS; sacrificed to document the race) | `856b4d412ec9678fe6533c51a73cd5da268c7086cc06b3b301e74cd64337d35a` |
+| Late claim in race window (accepted — see finding F1) | `5d65b5a08bf28852679ed490c963d18590bb97f422aca5a9560f4d428c3f6cb2` |
+
+### R3 attack results (chain-level, all error messages verbatim from the node)
+
+| Attack | Result |
+|---|---|
+| Claim signed by wrong key (S instead of R) | **CHAIN REJECTED** — "false stack entry at end of script execution" |
+| Refund before deadline | **CHAIN REJECTED** — "transaction input #0 is not finalized" |
+| Claim without reply payload | **CHAIN REJECTED** — "substring [0:15] is out of bounds for string of length 0" |
+| Claim after refund executed | **CHAIN REJECTED** — "is an orphan where orphan is disallowed" (UTXO consumed) |
+| Claim after deadline, BEFORE refund broadcast | **ACCEPTED** — finding F1 below |
+
+### R2 dual verification (independent recomputation from raw chain data)
+
+Fetched via `https://api-tn10.kaspa.org/transactions/<txid>` (REST — a
+different path than the wRPC used for submission):
+- Claim tx: input = lock outpoint `a9ad...f01c:0` (100,000,000 sompi);
+  **exactly one output**: 99,500,000 sompi → recipient address
+  `kaspatest:qredz8z5x6emeypx7y08ujuylp5f8q36k66vap4ffanl847f3wmsqskc374cr`;
+  payload decodes to `ciph_msg:1:ask:Yes - love the idea, let's talk next
+  week!`; difference (500,000 sompi) is miner fee only. **No fee output
+  exists (D2 ✓). All-or-nothing (✓).** `is_accepted: true`.
+- Refund tx: input = lock outpoint `2000...6290:0` (100,000,000 sompi);
+  exactly one output: 99,500,000 sompi → sender address
+  `kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6`;
+  no payload; no fee output. `is_accepted: true`.
+
+### Findings
+
+- **F1 — deadline race window (capability boundary, documented per C3/R6):**
+  No Kaspa script primitive can observe the current DAA score
+  (`OpTxInputDaaScore` pushes the spent UTXO's CREATION score — verified
+  from rusty-kaspa v2.0.1 `crypto/txscript/src/opcodes/mod.rs:1282-1296`;
+  CLTV expresses only "not before X"). Therefore the covenant cannot make
+  claims EXPIRE at the deadline. What the chain enforces: after the refund
+  tx consumes the UTXO, late claims are rejected as double-spends
+  (demonstrated). Between deadline and refund broadcast there is a window
+  where a late claim is still chain-valid (demonstrated on racetest,
+  deliberately). Mitigations for Phase 2 discussion: (1) sender client
+  auto-broadcasts refund at deadline; (2) make the refund branch
+  ANYONE-triggerable with covenant-pinned destination+amount
+  (OpTxOutputSpk/OpTxOutputAmount introspection), so any watcher can close
+  the window in the first post-deadline block; (3) recipient clients refuse
+  to construct late claims (A5 client-side rule). **D9's "no race" wording
+  cannot be 100% chain-enforced — needs human decision on framing (R8).**
+- **F2 — `createInputSignature` returns a push-encoded signature-script
+  fragment** (leading length byte), not a raw signature. Discovered
+  empirically ("malformed signature" rejections); handled in
+  `spike/lib.cjs buildSpendSignatureScript`. Also invalidated-then-revalidated
+  the wrong-key attack (its first "rejection" was for malformedness, not key
+  mismatch; re-run produced the genuine "false stack entry" rejection).
+- **F3 — Kaspa CLTV POPS its argument** (unlike Bitcoin's peek+OpDrop
+  convention) — verified in v2.0.1 `opcodes/mod.rs:1014-1064` and confirmed
+  on-chain. Kaspa CLTV also enforces threshold-class matching (DAA vs
+  timestamp) between stack value and tx lockTime, and input sequence != MAX.
+- **F4 — public TN10 wRPC nodes are flaky** (multiple resolver picks were
+  dead); `spike/lib.cjs connect()` retries across resolver picks and
+  validates synced+utxoindex. The reference client needs the same
+  robustness (and false "chain rejection" classification is guarded by
+  `isChainRejection` — connection failures never count as rejections).
+- **F5 — TN10 DAA cadence ≈ 10 scores/second** (measured while polling:
+  ~156 DAA per 15s), consistent with 10 bps. Deadline conversion for the
+  client: seconds × 10, refined at Phase 2.
+
+### R4 self-review (Phase 1 spike)
+
+Diff reviewed against [Phase 1 a-d, C3, R3 subset, R6]; deviations: none.
+Spike code is throwaway-by-design (brief), lives in `/spike`, excluded from
+app build. The lock currently uses `createTransactions` (Generator) which
+adds its own fee handling — fine for spike; the Phase 2 library will build
+the lock explicitly.
+
+## Phase 0 (COMPLETE — gate passed 2026-08-03)
 
 ## Phase 0 checklist
 
