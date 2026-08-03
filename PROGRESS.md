@@ -2,8 +2,8 @@
 
 ## Current phase
 
-**Phase 3 — Reference client. IN PROGRESS (started 2026-08-03; Phase 2
-gate passed).**
+**Phase 3 — Reference client. BUILD COMPLETE; AWAITING THE HUMAN
+END-TO-END GATE TEST (dev server running at http://localhost:3000).**
 
 ### Phase 3 context (from the human, 2026-08-03)
 
@@ -65,20 +65,32 @@ code, TRUST.md current, tagged `phase-2` (commit `86d5cc3`).
 
 ### Phase 3 checklist (per brief §9)
 
-- [ ] Screens S1-S3 wired to `src/lib/ask`: COMPOSE (address/KNS, message,
+- [x] Screens S1-S3 wired to `src/lib/ask`: COMPOSE (address/KNS, message,
       amount, deadline picker w/ 7-day default, TESTNET badge, honesty line
       from TRUST.md), INBOX (list + countdown + reply-to-claim), SENT
       (status states + countdown + explorer links to tn10.kaspa.stream)
-- [ ] Wallet connect per §3.2 (signature-based ownership proof; local key
+- [x] Wallet connect per §3.2 (signature-based ownership proof; local key
       generation OK for testnet; keys never server-side)
-- [ ] Inbox MUST verify announcement reproduces the funded P2SH (ASKSPEC
-      §4) — carried forward from Phase 2 R4 review
-- [ ] Normative client rules live: auto-broadcast refund at deadline;
-      refuse late claim construction with clean "deadline passed" state
-- [ ] DB as cache only + "rebuild from chain" check (§3.3)
-- [ ] Input hardening: size limits, XSS-inert rendering of messages/replies
-- [ ] Human end-to-end test on two real wallets (acceptance)
-- [ ] TRACE.md S1-S3 rows verified; committed + tagged `phase-3`
+- [x] Inbox verifies announcement reproduces the funded P2SH (ASKSPEC §4):
+      deriveStatusFromChain gates every inbox item (firehose AND cache
+      paths); unverified announcements are never surfaced
+- [x] Normative client rules live: useAsks auto-broadcasts the sig-less
+      refund past deadline (both roles); claimAsk refuses late construction
+      (DeadlinePassedError) and the inbox shows the clean "deadline passed"
+      state
+- [x] DB as cache only + "rebuild from chain" check (§3.3) — INT test
+      GREEN on TN10: sender rebuild reconstructs the answered lifecycle
+      (claim txid exact) and refunded lifecycle (refund txid exact) from
+      the address alone; recipient rebuild recovers the answered ask via
+      its reply ref; UI action on Sent does the same drop-and-rebuild
+- [x] Input hardening: MAX_MESSAGE_CHARS at textarea+library+codec layers;
+      all message/reply text rendered via React text nodes only
+      (grep-verified: no dangerouslySetInnerHTML/innerHTML anywhere)
+- [ ] Human end-to-end test on two real wallets (acceptance) — READY:
+      dev server running at http://localhost:3000 (LAN:
+      http://192.168.14.86:3000 for the second device)
+- [ ] TRACE.md S1-S3 rows flipped to verified after the human test;
+      committed + tagged `phase-3`
 
 ### Phase 1 gate decision (human, 2026-08-03)
 
@@ -354,6 +366,71 @@ the lock explicitly.
   clock), Kaskly header (wordmark placeholder, TESTNET badge, wallet
   panel with balance), dark/teal theme per brief §5, config guard that
   refuses any non-testnet network id (D10/T4).
+
+### Session 2 continued — screens + data layer + rebuild (2026-08-03)
+
+- Prisma 7 finding: the client REQUIRES a driver adapter
+  (`@prisma/adapter-better-sqlite3` installed and wired in db.ts; export
+  name is `PrismaBetterSqlite3` — lowercase "qlite").
+- TN10 REST ground truth (probed with real Phase 2 txids before use, per
+  R6): `GET /addresses/{addr}/full-transactions?limit=…&resolve_previous_
+  outpoints=light` returns BOTH funding and spending transactions of a
+  P2SH address, with payloads and `previous_outpoint_address` resolution —
+  this is what makes chain-derived answered/refunded classification and
+  the §3.3 rebuild possible without any indexer of our own.
+- KNS: endpoint + response shape verified from Kasia source (fetched
+  kns-integration-service.ts from GitHub; `{success, data:{owner, asset}}`
+  with asset echo check). Implemented in src/lib/kns.ts; documented in
+  TRUST.md as a trusted third-party lookup.
+- Author-plaintext problem solved Kasia-style: on-chain text is encrypted
+  to the counterparty, so the author's own copy (sent message / typed
+  reply) is kept in browser localStorage (`src/lib/local-notes.ts`),
+  never server-side. Cache DB carries ciphertexts only (D8-safe even with
+  a shared localhost server between two test browsers).
+- Live UX: block-firehose scanner feeds both roles — recipients see new
+  Asks appear (after mandatory §4 verification), senders see "answered"
+  arrive in real time with the reply decrypting client-side.
+- Dev server left running for the human gate test: http://localhost:3000
+  (LAN http://192.168.14.86:3000).
+
+### R4 self-review (Phase 3: cache/store/S1 unit)
+
+Diff reviewed against [§3.3, §3.2 S1, D2, D6 (KNS), D8, D9 defaults, C4];
+deviations:
+- Cache API is unauthenticated on localhost — anyone with local access
+  could insert rows. Deliberate: the cache is untrusted by design; every
+  displayed status is chain-re-derived, unverified inbox items are never
+  surfaced, and Sent rows converge to chain truth on the next derivation.
+  Reference-client scope, noted here per R1.
+- `amount_kas` naming deviation carried from Phase 0 (amountSompi bigint)
+  — unchanged.
+
+### R4 self-review (Phase 3: S2/S3/use-asks unit)
+
+Diff reviewed against [S2, S3, A2, A3, A5 client rule, §8 rules 1+2, §4
+verification, C4, D8]; deviations:
+- Recipient's own past replies are shown from local notes (not decryptable
+  from chain by the recipient — they are encrypted to the sender); if
+  local notes are cleared, the answered state + explorer link remain but
+  not the reply text. Honest limitation of the encryption model, stated in
+  TRUST.md.
+- Auto-refund attempts are throttled to once per ask per session with
+  retry on failure; a competing watcher winning the race is treated as
+  success (protocol-correct — F1 mitigation is "anyone closes the door").
+
+### R4 self-review (Phase 3: rebuild unit)
+
+Diff reviewed against [§3.3 rebuild check, §2.3 parsing rules, §4, §7
+historical sync]; deviations:
+- Recipient-side rebuild recovers answered asks only (lock txs never touch
+  the recipient's address; unanswered incoming asks are firehose-only) —
+  documented in rebuild.ts and matching the protocol's discovery model.
+- History fetch is capped at the REST limit (500 txs, no pagination) —
+  sufficient for reference scale; noted as a limitation, logged for
+  IDEAS/Phase 4 README.
+- Pre-Q4 plaintext-era lifecycle txs (msgEnc "plain") are now malformed
+  per §2.3 and correctly SKIPPED by rebuild — only encrypted-era records
+  reconstruct. This is spec-conforming behavior, not data loss.
 
 ### R4 self-review (Phase 3: web SDK wiring + wallet/shell unit)
 

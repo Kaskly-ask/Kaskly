@@ -36,15 +36,25 @@ evidence recorded in PROGRESS.md).
 | A2 | NOTIFY: discovery by scanning ask-namespace payloads | node.ts startAskScanner | INT (live firehose catches the lock tx) | tested |
 | A3 | CLAIM-BY-REPLY: one atomic tx = spend + reply payload | transactions.ts buildClaimTransaction | INT + R2 REST decode (output/amount/payload) | verified |
 | A4 | REFUND: post-deadline 100% return, anyone-triggerable | transactions.ts buildRefundTransaction (sig-less) | INT + R2 UTXO-set recomputation | verified |
-| A5 | LATE REPLY: rejected at rule level + clean client state | chain side: covenant+consensus; client rule: ASKSPEC §8 (UI in Phase 3) | INT (post-refund claim chain-rejected) | tested |
+| A5 | LATE REPLY: rejected at rule level + clean client state | chain side: covenant+consensus; client rule: asks-client.ts claimAsk guard + inbox deadline-passed state | INT (post-refund claim chain-rejected); UI state human-verified at gate | tested |
 
 ## Reference client screens (S) — Phase 3
 
 | ID | Summary | Implementation | Tests | Status |
 |----|---------|----------------|-------|--------|
-| S1 | COMPOSE screen | — | — | unstarted |
-| S2 | INBOX screen | — | — | unstarted |
-| S3 | SENT screen | — | — | unstarted |
+| S1 | COMPOSE screen (address/KNS, message, amount, deadline picker 7d default, TESTNET badge, honesty line, no fee line) | src/app/page.tsx; kns.ts (KNS shape verified from Kasia source); asks-client.ts sendAsk | build+lint green; human end-to-end at gate | built |
+| S2 | INBOX screen (list, countdown, reply-to-claim; §4 escrow verification REQUIRED before display; late-claim refusal + clean deadline-passed state) | src/app/inbox/page.tsx; use-asks.ts (firehose + deriveStatusFromChain §4 gate); asks-client.ts claimAsk (DeadlinePassedError) | build+lint green; §4 predicate exercised by INT rebuild (unverified announcements dropped); human end-to-end at gate | built |
+| S3 | SENT screen (status states, countdown, explorer links, decrypted replies, rebuild-from-chain action) | src/app/sent/page.tsx; use-asks.ts; rebuild.ts | INT rebuild.test.ts (statuses reconstructed from chain); human end-to-end at gate | built |
+
+### Phase 3 client infrastructure (maps to §3.2/§3.3/§8 client rules)
+
+| Item | Spec basis | Implementation | Tests | Status |
+|------|-----------|----------------|-------|--------|
+| Wallet: browser-only keys + signature ownership proof | §3.2, D4 | src/lib/wallet.tsx (signMessage/verifyMessage) | build green; human connect flow at gate | built |
+| DB as cache + rebuild-from-chain | §3.3 | src/lib/repo.ts, api/asks route, src/lib/rebuild.ts | UNIT rebuild.test.ts (classifier, malformed skipped); INT rebuild.test.ts GREEN on TN10 (answered + refunded lifecycles reconstructed, exact txids, both roles) | tested |
+| Auto-refund at deadline (normative rule 1) | §8, D9 | use-asks.ts effect → asks-client.ts maybeAutoRefund (both roles) | covenant path proven Phase 2; UI trigger human-verified at gate | built |
+| Refuse late claim construction (normative rule 2) | §8, A5, D9 | asks-client.ts claimAsk guard; inbox deadline-passed state | guard precedes any tx construction; human-verified at gate | built |
+| XSS-inert rendering + size limits | Phase 3 accept, §9 | React text nodes only (no dangerouslySetInnerHTML, grep-verified); MAX_MESSAGE_CHARS at textarea+lib+codec | UNIT codec size tests; human script-injection check at gate | built |
 
 ## Chain layer (C)
 
@@ -53,7 +63,7 @@ evidence recorded in PROGRESS.md).
 | C1 | Pinned official WASM SDK; wRPC detection; installed types read | package.json (kaspa-wasm 2.0.1 file: pin), node.ts | INT (all chain ops via pinned SDK) | tested |
 | C2 | Escrow properties (lock/claim-with-reply/timeout/no third party/no fees) | covenant.ts | INT: 9 chain-rejected attacks + lifecycle; UNIT golden vector | verified |
 | C3 | Implementation honesty gate (real capabilities, cited) | PROGRESS.md ground truth + findings F1-F5, all source-cited | — | verified |
-| C4 | Explorer link for every tx | .env.example (tn10.kaspa.stream, human-confirmed) | UI links in Phase 3 | built |
+| C4 | Explorer link for every tx | ask-card.tsx ExplorerLink (lock/claim/refund on every card); config.ts explorerTxUrl | human click-through at gate | built |
 | C5 | README cold start | — | — | unstarted |
 
 ## Protocol spec (P)

@@ -57,6 +57,37 @@ encryption, so our "same scheme" claim rests on a careful line-by-line
 reimplementation of their code, not on a cross-check against their output.
 We flag this for confirmation with the Kasia team.
 
+## The reference client (Kaskly) — what the app itself can and cannot do
+
+The web app ("Kaskly") is one client for the open protocol; everything
+above is enforced by the chain no matter which client you use. What the
+app adds, honestly:
+
+- **Your keys live in your browser only** (generated there, stored in
+  browser localStorage so the wallet survives a reload). They are never
+  sent to any server. This storage is appropriate for TESTNET keys only —
+  which is all this project uses — and the app refuses to run on any
+  non-testnet network.
+- **The app's database is a disposable cache.** It stores only public
+  chain data and ciphertexts — never plaintext, never keys. Every status
+  it shows is re-derived from the chain, and a "rebuild from chain" action
+  (plus an automated test) proves the whole cache can be deleted and
+  reconstructed from public chain data alone.
+- **Your own words are kept only on your device.** On-chain, your message
+  is encrypted to the recipient (and their reply to you) — so the app
+  keeps YOUR copy of what YOU wrote in your browser's local storage. If
+  you clear it, the money flows are unaffected; you just can't re-read
+  your own sent text.
+- **Deadlines are watched automatically.** Once a deadline passes, the
+  app broadcasts the (anyone-can-trigger) refund by itself — from the
+  sender's view AND the recipient's — and the recipient's reply box is
+  replaced by a clear "deadline passed" notice. This is required client
+  behavior in the protocol spec, not a courtesy.
+- **.kas names are a convenience lookup** against the third-party KNS
+  service (api.knsdomains.org). If you use one, you are trusting that
+  service to return the right address — the address itself is always
+  shown before you send.
+
 ## Always true, regardless of outcome
 
 - **Testnet only** for this entire project (no real money).
