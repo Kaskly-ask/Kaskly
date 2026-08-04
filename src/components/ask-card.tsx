@@ -155,6 +155,12 @@ const STATUS_LABELS: Record<AskStatus, { label: string; cls: string }> = {
     label: "expired — refund pending",
     cls: "text-warn border-warn/40",
   },
+  // F14: the money moved to the recipient, but the reply could not be
+  // read. Never render this as "refunded" — that was the bug.
+  claimed_unreadable: {
+    label: "claimed — reply unreadable",
+    cls: "text-warn border-warn/60 bg-warn/10",
+  },
 };
 
 export function StatusChip({ status }: { status: AskStatus }) {

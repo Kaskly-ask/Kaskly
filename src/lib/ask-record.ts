@@ -7,6 +7,13 @@ export const ASK_STATUSES = [
   "answered",
   "refunded",
   "expired_pending_refund",
+  // F14: the covenant's claim branch enforces only the payload header and
+  // (V3) the askId — it cannot parse or decrypt the JSON body. So a claim
+  // carrying a valid header and an unreadable body IS chain-valid and pays
+  // the recipient. That is NOT a refund, and reporting it as one told the
+  // sender "every sompi is back in your wallet" while the money was gone.
+  // It gets its own terminal state.
+  "claimed_unreadable",
 ] as const;
 export type AskStatus = (typeof ASK_STATUSES)[number];
 

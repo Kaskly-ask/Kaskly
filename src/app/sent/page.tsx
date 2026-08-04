@@ -74,7 +74,17 @@ function SentItem({
       )}
       {ask.status === "refunded" && (
         <p className="text-sm text-muted bg-card-raised rounded-lg px-4 py-3">
-          No reply came. Every sompi is back in your wallet.
+          No reply came. Your KAS is back in your wallet — check the refund
+          transaction to confirm the amount.
+        </p>
+      )}
+      {/* F14: this state used to be reported as "refunded", which told the
+          sender their money was back when it had gone to the recipient. */}
+      {ask.status === "claimed_unreadable" && (
+        <p className="text-sm text-warn bg-card-raised rounded-lg px-4 py-3">
+          They claimed the KAS, but their reply could not be read — it may be
+          malformed or not encrypted to you. The money went to them, not back
+          to you. Open the transaction to see exactly where it went.
         </p>
       )}
     </AskCard>

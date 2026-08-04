@@ -209,15 +209,58 @@ export async function deriveStatusFromChain(
       };
     }
   } catch {
-    /* malformed payload on the spender â€” treat as non-reply spend */
+    /* malformed payload on the spender — NOT evidence of a refund (F14) */
   }
+
+  // --- F14: classify "refunded" ONLY on a POSITIVE test ----------------
+  // The old code fell through to `refunded` whenever the payload was not a
+  // matching reply — including when parsing THREW. A recipient could
+  // therefore claim with a valid header and a garbage body and the
+  // sender's UI would report "No reply came. Every sompi is back in your
+  // wallet." while the money went to the recipient. Rebuild-from-chain
+  // reproduced the lie, so the designated recovery action confirmed it.
+  //
+  // A genuine refund is trivially recognisable, because the covenant pins
+  // its shape: exactly ONE output, paying the sender's address, of at
+  // least minRefund. Anything else that spent the covenant is a claim we
+  // could not read — a distinct terminal state, never silently a refund.
+  //
+  // Timing note: ASKSPEC §7 also says "after deadline". We do not re-check
+  // that here because the covenant's refund branch carries
+  // OpCheckLockTimeVerify(deadline) — consensus already refused any refund
+  // before it. The REST record exposes block_time (wall clock), which is
+  // not comparable to a DAA-score deadline, so testing it here would be
+  // theatre rather than verification.
+  const outs = spender.outputs ?? [];
+  const paysSenderOnly =
+    outs.length === 1 &&
+    outs[0].script_public_key_address === record.senderAddress &&
+    BigInt(outs[0].amount) >= cov.minRefund;
+
+  if (paysSenderOnly) {
+    return {
+      verified: true,
+      status: "refunded",
+      claimTxid: null,
+      refundTxid: spender.transaction_id,
+      replyCiphertext: null,
+      claimNetSompi: null,
+      resolvedAtMs: spender.block_time ?? null,
+    };
+  }
+
+  // Spent, but neither a verifiable reply nor a well-formed refund. The
+  // money moved and we must say so plainly rather than guess.
+  const claimNet = outs
+    .filter((o) => o.script_public_key_address === record.recipientAddress)
+    .reduce((sum, o) => sum + BigInt(o.amount), 0n);
   return {
     verified: true,
-    status: "refunded",
-    claimTxid: null,
-    refundTxid: spender.transaction_id,
+    status: "claimed_unreadable",
+    claimTxid: spender.transaction_id,
+    refundTxid: null,
     replyCiphertext: null,
-    claimNetSompi: null,
+    claimNetSompi: claimNet > 0n ? claimNet.toString() : null,
     resolvedAtMs: spender.block_time ?? null,
   };
 }
