@@ -219,12 +219,25 @@ The implementation MUST treat non-convergence as "refuse this amount".
 Using the last iterate would produce a covenant whose refund is
 unbroadcastable — reintroducing F13 inside the F13 fix.
 
-**This is a test, not a comment [HUMAN].** `spike/09-small-ask-floor.cjs`
-must include an explicit **0.1 KAS case asserting the client refuses to
-construct**, alongside: below-floor refusal, just-above-floor lock→refund
-success with R2 verification, and a deliberately under-allowanced covenant
-whose refund is chain-rejected (proving the failure mode still exists for
-anyone ignoring the rule).
+**This is a test, not a comment [HUMAN].** The requirement is an explicit
+**0.1 KAS case asserting the client refuses to construct**, plus
+below-floor refusal and just-above-floor lock→refund success.
+
+> **CORRECTED 2026-08-04 (second audit).** This item originally named a
+> chain probe, `spike/09-small-ask-floor.cjs` — **a file that was never
+> written**, yet §9 listed it as a gate and `covenant-v3` was tagged as
+> "campaign complete" anyway. The gate list was wrong and the tag claimed
+> more than had been run.
+>
+> The SUBSTANCE is covered, in a better place than a spike: the refusal is
+> asserted as a unit test in `tests/unit/fees-v3.test.ts` (0.1 KAS
+> non-convergence, 0.05 KAS no-valid-fee, and the whole 600k–5M sompi band
+> that V2's guard wrongly accepted), and `tests/unit/wiring-v3.test.ts`
+> proves the refusal survives into `prepareAskV3` so an unviable Ask can
+> never reach the chain. Just-above-floor lock→refund success is
+> chain-proven by probe 07c and the V3 refund lifecycle. **The
+> deliberately-under-allowanced-covenant case remains unwritten** and is
+> the one genuine gap from the original list.
 
 ---
 
@@ -273,19 +286,30 @@ Because the fee is flat above ~0.15 KAS, **the maximum skim is a constant
 `74,100 × (margin − 1)` sompi regardless of Ask size**, so its
 *proportional* cost is worst at the smallest allowed Ask:
 
+> **CORRECTED 2026-08-04 (second audit).** The table below was computed
+> from a 74,100-sompi solved fee, which was the fee for the **V2** refund
+> shape — the design was written before the V3 script existed. The shipped
+> code was wrong in the other direction: the solver returned its own
+> 100,000-sompi seed, so the allowance was a constant 400,000. Neither
+> number was real. With the solver fixed and pricing the actual 172-byte
+> V3 refund, the true figures are **fee 79,600, allowance 318,400 at 4×**,
+> and the max skim is **238,800 sompi**. The corrected table:
+
 | margin | allowance | max skim | as % of a 0.2 KAS Ask | as % of 1 KAS | fee-rate rise tolerated |
 |---|---|---|---|---|---|
-| 2× | 148,200 | 0.00074 KAS | 0.37% | 0.074% | 2× |
-| **4×** | **296,400** | **0.0022 KAS** | **1.11%** | **0.22%** | **4×** |
-| 8× | 592,800 | 0.0052 KAS | 2.59% | 0.52% | 8× |
-| 16× | 1,185,600 | 0.0111 KAS | 5.56% | 1.11% | 16× |
+| 2× | 159,200 | 0.00080 KAS | 0.40% | 0.080% | 2× |
+| **4×** | **318,400** | **0.0024 KAS** | **1.19%** | **0.24%** | **4×** |
+| 8× | 636,800 | 0.0056 KAS | 2.79% | 0.56% | 8× |
+| 16× | 1,273,600 | 0.0119 KAS | 5.97% | 1.19% | 16× |
 
 "Max skim" is what a hostile refunder can withhold: anyone may trigger the
 refund, and a griefer can pay only the floor and let the difference go to
 the miner. They gain nothing — it is pure griefing — but the sender loses
 it.
 
-**Recommendation: margin 4×, with a minimum Ask of 0.5 KAS.**
+**Recommendation: margin 4×, with a minimum Ask of 0.5 KAS.** (Figures
+below restated at the corrected 79,600-sompi fee: worst-case skim at a
+0.5 KAS minimum is 0.48%, and ≤0.24% for Asks of 1 KAS or more.)
 
 - 4× tolerates the network minimum fee rate quadrupling (100 → 400
   sompi/gram) after lock before a refund becomes unbroadcastable.
@@ -366,6 +390,29 @@ while creating only V3; migration note required in ASKSPEC.
 7. ASKSPEC, TRUST.md and the UI honesty strings updated to describe what
    V3 actually enforces; correction notices moved from "being designed" to
    what shipped.
+
+## 10b. KNOWN OPEN — behaviour under sustained fee-rate rise is REASONED, NOT CHAIN-DEMONSTRATED
+
+TN10 cannot simulate elevated network fees, so every claim below rests on
+arithmetic against the SDK's mass/fee functions rather than on a broadcast
+transaction. Both effects share one root cause and are tracked as one item
+rather than scattered:
+
+- **The solver's 1.35× failure mode (computed).** The old template priced
+  741 grams while the real V3 refund needs 793. Any fee rate where
+  `741·R` clears the old 100,000-sompi seed but `793·R` exceeds it yields
+  an unbroadcastable refund. Fixed in code; the FAILURE it would have
+  caused was never reproduced on chain, only calculated.
+- **The claim-viability floor rises with no subsidy rescue.** One-in-one-out
+  claims converge from ~0.2 KAS at current rates, so the 0.5 KAS minimum
+  sits roughly **3×** above the cliff — not 10×. That margin is
+  denominated in fee RATE, and F12's input pin (extended to the claim
+  branch, §2) permanently removed the recipient-subsidy rescue. A
+  sustained rise pushes the floor toward the minimum with nothing to
+  catch it.
+
+**Close this on mainnet, or on any fee-adjustable testnet.** Until then it
+is honest to say V3 is proven at current rates and reasoned above them.
 
 ## 11. Cost of the gate — stranded probe funds (testnet)
 

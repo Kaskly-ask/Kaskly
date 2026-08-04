@@ -117,10 +117,25 @@ export function prepareAskV3(params: PrepareAskV3Params): PreparedAskV3 {
 }
 
 /**
- * §4 escrow verification, V3: rebuild the covenant from the ANNOUNCEMENT
- * alone and check it reproduces a given P2SH. This is what makes an
- * announcement trustworthy — and it is why askId and refundAllowance are
- * mandatory envelope fields.
+ * Rebuild the V3 covenant from the ANNOUNCEMENT alone.
+ *
+ * ⚠️ THIS PROVES THE ADDRESS, NOT THE FUNDING. It returns only a script
+ * and a P2SH; it never sees the funded UTXO, so it cannot tell you the
+ * covenant holds what the announcement claims.
+ *
+ * CORRECTION (second audit, 2026-08-04): an earlier version of this
+ * comment called it "what makes an announcement trustworthy" and said
+ * `amountSompi` closed the §4 funding gap. Both were wrong. `amountSompi`
+ * is announced and copied into the cache record, but NOTHING in `src/`
+ * compares it against the funded output on the V3 path, and this function
+ * has no production caller — the live derivation path
+ * (`asks-client.ts covenantFor`) is still V2-only, so V3 announcements
+ * currently fail closed rather than verify.
+ *
+ * A complete §4 check needs BOTH: this address rebuild, AND
+ * `utxo.amount === BigInt(envelope.amountSompi)` with
+ * `utxo.outpoint.transactionId === lockTxid` — the identity check the V2
+ * path performs at `asks-client.ts:141-146` and the spec does not require.
  */
 export function rebuildCovenantFromAnnouncementV3(
   envelope: AskEnvelopeV3,

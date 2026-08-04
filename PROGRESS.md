@@ -916,6 +916,23 @@ Second-audit findings and status:
   sub-threshold control also refunded; R2 confirmed 2,499,900,000 sompi
   returned. The V3 floor arithmetic handles 5-byte operands. No upper
   bound established beyond 25 KAS.
+- **Falsified docs — CORRECTED** (2026-08-04): the `amountSompi`/§4 claim
+  in `node-v3.ts` (it proves the address, not the funding, and has no
+  production caller); the "one reply can never claim two Asks" comment in
+  `covenant-v3.ts` (true only V3-vs-V3 with distinct askIds — same-askId
+  and mixed V2+V3 are blocked by the INPUT PIN, not the askId); design §6
+  skim figures (79,600 / 318,400, replacing both the design's 74,100 /
+  296,400 and the shipped-broken 100,000 / 400,000); the §9 gate naming
+  `spike/09-small-ask-floor.cjs`, **a file that never existed while the
+  tag claimed the campaign complete**; and ASKSPEC, which described v1
+  throughout and now carries a §0 warning with the full v1→v2 delta table.
+- **CONSOLIDATED KNOWN-OPEN:** behaviour under sustained fee-rate rise is
+  REASONED, NOT CHAIN-DEMONSTRATED — TN10 cannot simulate elevated fees.
+  Affects the solver's 1.35× failure mode (computed, never reproduced) and
+  the claim-viability floor rising with no subsidy rescue (0.5 KAS minimum
+  sits ~3× above the ~0.2 KAS cliff, and the input pin removed the
+  recipient-subsidy escape). Close on mainnet or a fee-adjustable testnet.
+  Recorded once, in COVENANT-V3-DESIGN.md §10b.
 - **STILL OPEN:** `amountSompi` is announced but never compared against
   the funded UTXO in any V3 path (`rebuildCovenantFromAnnouncementV3`
   returns only an address and has no production caller) — my earlier claim

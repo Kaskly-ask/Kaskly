@@ -20,6 +20,58 @@ on-chain evidence live at the ASK repository (see §12).
 
 ---
 
+## 0. ⚠️ THIS DOCUMENT DESCRIBES PROTOCOL v1 (V2 COVENANT). A v2 EXISTS AND IS NOT SPECIFIED HERE.
+
+**Do not implement from this document alone if you intend to interoperate
+with the current reference client.** As of 2026-08-04 the reference
+implementation ships a second covenant version ("V3" in the repository)
+that this specification does not yet describe. Everything below is
+accurate for v1; the deltas are listed here so no implementer is misled
+while the full rewrite is pending.
+
+**Why v2 exists.** An adversarial review of v1 found two Critical defects,
+both since chain-proven fixed in the new covenant:
+
+- The refund branch pinned the transaction's OUTPUT side but not its
+  INPUT side, so several of one sender's expired Asks could be refunded by
+  a single transaction paying only the largest, with the surplus taken as
+  miner fee. Demonstrated on testnet: 4 KAS locked, 2.995 returned.
+- The claim branch validated only the 15-byte namespace prefix, so one
+  reply payload could claim several senders' Asks at once.
+
+**What changes in v2 (normative summary, full text pending):**
+
+| | v1 (this document) | v2 |
+|---|---|---|
+| Reply payload header | `ciph_msg:1:ask:r:` (15-byte prefix checked) | `ciph_msg:1:ask:r2:` — **18 bytes, all checked** |
+| Announcement header | `ciph_msg:1:ask:a:` | `ciph_msg:1:ask:a2:` |
+| Reply payload layout | header ‖ JSON | header ‖ **32 raw bytes `askId`** ‖ JSON |
+| Envelope version | `v: 1` | `v: 2` |
+| New envelope fields | — | `askId`, `refundAllowance`, `amountSompi` (all mandatory) |
+| Refund fee allowance | fixed 500,000 sompi | **per-Ask**, derived from the real refund mass |
+| Claim branch | prefix + recipient signature | payload-length guard, 18-byte header, `askId` match, **exactly one input**, recipient signature |
+| Refund branch | CLTV, one output, sender SPK, ≥ `minRefund` | as v1 **plus exactly one input**, and the floor derived from the input's real amount rather than a baked constant |
+
+**Subkind, not namespace.** v2 stays inside Kasia's `ciph_msg:1:` namespace
+and changes only the subkind (`r:` → `r2:`), so existing Kasia clients and
+explorers keep classifying ASK traffic. An implementation that does not
+know v2 meets an unknown subkind at byte 15 and MUST ignore it (§11) —
+rather than mis-reading 32 raw bytes as the start of JSON.
+**UNCONFIRMED:** whether Kasia's own parser and the public explorers skip
+`r2:`/`a2:` cleanly has not been verified with their maintainers (Q3).
+
+**Also not yet reflected below:** §4's escrow-verification predicate is
+incomplete as written. Reproducing the announced P2SH proves the covenant's
+SHAPE, not its FUNDING. A correct check also requires that the funded
+output's amount equals the announced `amountSompi` **and** that the funding
+transaction is the announced lock transaction; without the latter, an
+observer can re-announce a live covenant with a substituted message. The
+reference client performs the identity check; this spec does not currently
+require it. Both are defects in this document, recorded rather than
+silently patched.
+
+---
+
 ## 1. Terminology and constants
 
 | Term | Meaning |

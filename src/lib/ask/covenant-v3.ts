@@ -105,16 +105,28 @@ function hexToBytes(hex: string): Uint8Array {
  *   payload[0:18]  == "ciph_msg:1:ask:r2:"   → kind is a V3 reply
  *   payload[18:50] == askId                  → binds THIS Ask
  *   recipient schnorr signature
- * A transaction carries exactly ONE payload, so two V3 covenant UTXOs with
- * different askIds impose contradictory requirements on the same bytes.
+ * WHAT THE askId BINDING ACTUALLY GUARANTEES — stated precisely, because
+ * an earlier version of this comment overclaimed ("one reply can never
+ * claim two Asks", second audit 2026-08-04):
  *
- * CORRECTED 2026-08-04 (second audit): that argument holds only AMONG V3
- * covenants. It does NOT extend to a mixed V2+V3 input set, because V2's
- * claim branch checks only the 15-byte prefix that the V3 header begins
- * with. The input count is therefore pinned here too — see the branch
- * comment below. It also assumes askIds are unique, which nothing
- * enforces: askIds are public, and a hostile sender can deliberately
- * collide with a live one (tracked separately).
+ *  - V3 vs V3: a transaction carries exactly ONE payload, so two V3
+ *    covenants with DIFFERENT askIds impose contradictory requirements on
+ *    payload[18:50] and cannot both be satisfied. Holds — chain-proven by
+ *    spike 08, including two Asks funded by one lock transaction.
+ *  - V3 vs V3 with the SAME askId: NOT prevented by the script. askIds are
+ *    public in every announcement and nothing rejects duplicates, so a
+ *    hostile sender can deliberately collide with a live askId. Blocked
+ *    today only by the input pin below. Client-side duplicate detection is
+ *    still owed.
+ *  - V2 + V3 mixed: was NOT prevented by the askId at all. V2's claim
+ *    branch checks only the 15 bytes that the V3 header begins with, so
+ *    one V3 payload satisfied a V2 covenant too. Now blocked by the input
+ *    pin below — chain-proven by spike 13.
+ *
+ * In short: the askId binding is what makes V3-vs-V3 claims distinct; the
+ * input pin is what makes ANY multi-covenant claim impossible. The second
+ * is doing the heavy lifting, and the first should not be described as if
+ * it were.
  *
  * REFUND branch (selector FALSE) — F12 + F13/F21:
  *   exactly ONE input               (kills the batched-refund drain)
