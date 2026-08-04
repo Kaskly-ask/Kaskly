@@ -121,7 +121,14 @@ function refundSig(redeemHex: string): string {
 }
 
 async function newAsk(deadlineOffset: bigint) {
-  const deadlineDaa = (await currentDaaScore(rpc)) + deadlineOffset;
+  const currentDaa = await currentDaaScore(rpc);
+  const deadlineDaa = currentDaa + deadlineOffset;
+  // F24 CONTROL: passing currentDaa ACTIVATES the score-plausibility and
+  // 90-day deadline guards on the real client path. Every Ask this suite
+  // builds now runs through them — so if the bound were too tight, or the
+  // anchor wrong, the whole suite would fail rather than silently pass.
+  // That is the control that matters: a guard which rejects legitimate
+  // Asks is a worse outcome than the bug it fixes.
   const prepared = prepareAskV3({
     networkId: NETWORK_ID,
     senderAddress,
@@ -129,6 +136,7 @@ async function newAsk(deadlineOffset: bigint) {
     amount: ASK_AMOUNT,
     message: "V3 regression ask — please reply",
     deadlineDaa,
+    currentDaa,
     utxoTemplate,
   });
   const created = await createAskV3(rpc, prepared, {

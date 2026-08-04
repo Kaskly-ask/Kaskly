@@ -19,6 +19,11 @@ import {
 import { deriveAskCovenantV3, type AskCovenantV3Params } from "./covenant-v3";
 import { encodeAskPayloadV3, type AskEnvelopeV3 } from "./protocol-v3";
 import { solveRefundFee } from "./fees-v3";
+import {
+  assertPlausibleDaaScore,
+  assertDeadlineWithinBound,
+  DAA_ANCHORS,
+} from "./daa-guard";
 import { xOnlyFromAddress } from "./covenant";
 import { encryptKasia1 } from "./crypto";
 import { messageByteLength, messageTooLongError, MAX_MESSAGE_BYTES } from "./protocol";
@@ -38,6 +43,14 @@ export interface PrepareAskV3Params {
   amount: bigint;
   message: string;
   deadlineDaa: bigint;
+  /** The DAA score this deadline was derived from (F24). When supplied,
+   * it is sanity-checked against a recorded anchor and the resulting lock
+   * is bounded to 90 days. Production callers MUST pass it — omitting it
+   * skips the guard, which is only acceptable in fixture tests that build
+   * covenants from synthetic scores. */
+  currentDaa?: bigint;
+  /** Injectable clock for the plausibility check. */
+  nowMs?: number;
   /** Supply to make derivation deterministic in tests; omit in production. */
   askIdHex?: string;
   /** A UTXO shape for fee measurement (amount is what matters). */
@@ -69,6 +82,21 @@ export interface PreparedAskV3 {
 export function prepareAskV3(params: PrepareAskV3Params): PreparedAskV3 {
   if (messageByteLength(params.message) > MAX_MESSAGE_BYTES) {
     throw messageTooLongError("message");
+  }
+
+  // --- F24: bound what an untrusted node can do to the deadline --------
+  // Purely additive, and BEFORE the covenant is built. The DAA score comes
+  // from a wRPC node chosen by Resolver(); a hostile one reporting
+  // 499_000_000_000 yields a covenant locked ~1,585 years, invisibly,
+  // because the countdown reads the same node. Both guards throw, and the
+  // caller must treat that as "refuse to create this Ask".
+  if (params.currentDaa !== undefined) {
+    assertPlausibleDaaScore(params.networkId, params.currentDaa, params.nowMs);
+    assertDeadlineWithinBound({
+      currentDaa: params.currentDaa,
+      deadlineDaa: params.deadlineDaa,
+      ratePerSecond: DAA_ANCHORS[params.networkId]?.ratePerSecond ?? 10,
+    });
   }
 
   // F13: the allowance is derived per-Ask from the REAL refund mass.
