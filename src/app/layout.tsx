@@ -5,6 +5,7 @@ import { WalletProvider } from "@/lib/wallet";
 import { ChainProvider } from "@/lib/chain";
 import { ActivityProvider } from "@/lib/activity";
 import { Header } from "@/components/header";
+import { SheenController } from "@/components/sheen-controller";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({
         <WalletProvider>
           <ChainProvider>
             <ActivityProvider>
+            <SheenController />
             <Header />
             <main className="w-full max-w-2xl mx-auto flex-1 px-4 pb-16">
               {children}

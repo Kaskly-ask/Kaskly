@@ -524,6 +524,29 @@ over the DAA-denominated deadline (ASKSPEC §8 already says so).
    copy nit: "decrypting reply…" → "fetching reply from chain…" (the
    wait is the REST fetch, not decryption).
 
+**Glass rendering bug — root-caused and fixed (2026-08-04, human report:
+committed refinements not rendering).** Isolation test page (controlled
+swatches, screenshot evidence) proved two engine interactions, both in
+Chromium (the SAME browser for tester and agent — the automation
+extension drives the tester's installed Chrome; the earlier "working"
+evidence was over-read from zoomed JPEGs — stroke/glints mistaken for
+smear; recorded honestly):
+1. `background-attachment: fixed` mispaints on elements that also carry
+   `backdrop-filter` → the world-space sheen never rendered as designed.
+   Fix: the agreed fallback — SheenController, an rAF-throttled scroll
+   listener driving a `--sheen-shift` CSS variable at 15% parallax
+   (element-attached gradient, reduced-motion aware).
+2. A parent `backdrop-filter` becomes the BACKDROP ROOT: the refraction
+   ring pseudo sampled the parent's filtered surface, not the page —
+   diluting the edge effect to nothing. Fix: the card body's
+   backdrop-filter (blur 1px + 1.05 lift, visually near-nil) removed
+   entirely; the ring is now the only backdrop-filter and samples the
+   real page. Served-CSS audit also done: no Tailwind/Turbopack purging;
+   lightningcss collapses longhands but loses nothing; both
+   mask-composite forms served. Fix verified on real cards by zoomed
+   screenshots (texture bends in the rim band, crisp in the body; sheen
+   paints and drifts). Awaiting the human's fresh-eyes acceptance.
+
 **Post-tag queue COMPLETE (2026-08-04).** Glass refinements (world-space
 sheen via background-attachment:fixed — option 1 worked, no fallback
 listener needed; refraction ring widened to 5px with harder filter)

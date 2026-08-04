@@ -99,14 +99,17 @@ body::after {
 .glass-clear {
   position: relative;
   isolation: isolate;
-  /* Body: previous-iteration transparency (the backdrop must read through
-     at full clarity — brightening washed it out; lift capped at 1.05).
-     Legibility comes from content contrast and the inner panels, not from
-     brightening the pane.
-     First layer is the specular sheen — QUIET (≤7% white, soft-edged, not
-     animated) and WORLD-SPACE: viewport-anchored via background-attachment
-     fixed, so it belongs to the light source and slides across panels as
-     they scroll beneath it. */
+  /* Body: pure transparency — deliberately NO backdrop-filter here. Two
+     engine facts force this (diagnosed 2026-08-04, glass-diag isolation):
+     (a) a fixed-attachment background mispaints on elements that also
+     have backdrop-filter; (b) a parent backdrop-filter becomes the
+     BACKDROP ROOT, so the refraction ring pseudo would sample the
+     parent's filtered surface instead of the page — killing the edge
+     effect. The body had only blur(1px)+1.05 lift, visually near-nil.
+     First layer is the specular sheen — QUIET (≤7% white, soft-edged)
+     and WORLD-SPACE via --sheen-shift: an rAF-throttled scroll listener
+     (SheenController) drifts it at ~15% of scroll distance; static under
+     prefers-reduced-motion. */
   background:
     linear-gradient(
       115deg,
@@ -119,9 +122,9 @@ body::after {
       rgba(255, 255, 255, 0.035),
       rgba(255, 255, 255, 0.02)
     );
-  background-attachment: fixed, scroll;
-  -webkit-backdrop-filter: blur(1px) saturate(1.15) brightness(1.05);
-  backdrop-filter: blur(1px) saturate(1.15) brightness(1.05);
+  background-position:
+    0 var(--sheen-shift, 0px),
+    0 0;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
 }
 
