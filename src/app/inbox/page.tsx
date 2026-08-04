@@ -16,7 +16,7 @@ import { useChain } from "@/lib/chain";
 import { useDecrypted } from "@/lib/use-decrypted";
 import { getNote, setNote } from "@/lib/local-notes";
 import { formatKas } from "@/lib/config";
-import { AskCard, ExplorerLink } from "@/components/ask-card";
+import { AskCard, CollapsibleText, ExplorerLink } from "@/components/ask-card";
 import { MAX_MESSAGE_BYTES, messageByteLength } from "@/lib/ask/protocol";
 
 /** Debounced mass-based fee/net quote for the current reply draft (F7). */
@@ -121,9 +121,7 @@ function InboxItem({
             You replied and claimed {formatKas(BigInt(ask.amountSompi))} TKAS.
           </p>
           {myReply && (
-            <p className="whitespace-pre-wrap break-words text-sm text-muted">
-              {myReply}
-            </p>
+            <CollapsibleText text={myReply} className="text-sm text-muted" />
           )}
         </div>
       )}

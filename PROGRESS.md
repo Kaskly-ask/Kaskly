@@ -450,6 +450,17 @@ the lock explicitly.
   closed-app watcher tension (non-custodial; KaChat integration argument),
   and the unified Activity feed idea are parked in IDEAS.md.
 
+- **F9 — inbox scannability (fixed with the revised, smaller scope).**
+  Original finding: no archive/dismiss, test clutter accumulates. Human
+  revision mid-fix: the actual complaint is ONE HUGE CARD destroying
+  scannability — fixed with uniform card heights: message and reply text
+  collapse to ~3 lines (CSS line-clamp) with a show more/less expander,
+  on both Inbox and Sent. Archive/dismiss demoted to IDEAS.md as the
+  future volume solution, with its full gate design preserved (dismiss ≠
+  delete; live Asks need an amount+deadline confirm; localStorage
+  view-state only). An in-progress dismissed-store module was dropped
+  uncommitted in favor of the smaller fix.
+
 ### Process note (2026-08-04, R5 violation — recorded per L4/R4 honesty)
 
 While shipping the visible §4 badge, a chained shell command committed and

@@ -11,7 +11,7 @@ import { useAsks, type LiveAsk } from "@/lib/use-asks";
 import { useDecrypted } from "@/lib/use-decrypted";
 import { getNote } from "@/lib/local-notes";
 import { cacheAsk, clearCache } from "@/lib/asks-client";
-import { AskCard, ExplorerLink } from "@/components/ask-card";
+import { AskCard, CollapsibleText, ExplorerLink } from "@/components/ask-card";
 
 function SentItem({ ask, daaScore }: { ask: LiveAsk; daaScore: bigint | null }) {
   // The on-chain message is encrypted to the RECIPIENT; the sender's own
@@ -39,11 +39,14 @@ function SentItem({ ask, daaScore }: { ask: LiveAsk; daaScore: bigint | null }) 
       {ask.status === "answered" && (
         <div className="bg-card-raised rounded-lg px-4 py-3 space-y-1">
           <p className="text-xs text-teal">They replied — the KAS is theirs:</p>
-          <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-            {replyText ?? (
-              <span className="text-faint italic">decrypting reply…</span>
-            )}
-          </p>
+          {replyText !== null ? (
+            <CollapsibleText
+              text={replyText}
+              className="text-[15px] leading-relaxed"
+            />
+          ) : (
+            <p className="text-faint italic text-[15px]">decrypting reply…</p>
+          )}
         </div>
       )}
       {ask.status === "expired_pending_refund" && (

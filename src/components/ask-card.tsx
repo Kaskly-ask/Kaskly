@@ -3,9 +3,43 @@
 // bold tabular figure, countdown always visible. Message/reply text renders
 // through React text nodes only (XSS-inert by construction — never
 // dangerouslySetInnerHTML).
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { DAA_PER_SECOND, explorerTxUrl, formatKas, shortAddress } from "@/lib/config";
 import type { AskStatus } from "@/lib/ask-record";
+
+/** Long text collapses to ~3 lines with an expander (F9: one huge card
+ * must not destroy list scannability). Heuristic trigger — CSS clamps the
+ * actual rendering. */
+export function CollapsibleText({
+  text,
+  className = "",
+}: {
+  text: string;
+  className?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const collapsible =
+    text.length > 280 || (text.match(/\n/g)?.length ?? 0) >= 3;
+  return (
+    <div className="min-w-0">
+      <p
+        className={`whitespace-pre-wrap break-words ${className} ${
+          collapsible && !expanded ? "line-clamp-3" : ""
+        }`}
+      >
+        {text}
+      </p>
+      {collapsible && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-xs text-teal hover:underline mt-1"
+        >
+          {expanded ? "show less" : "show more"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function Countdown({
   deadline,
@@ -98,9 +132,13 @@ export function AskCard({
   return (
     <article className="bg-card border border-border rounded-xl p-5 space-y-4">
       <div className="flex items-start justify-between gap-4">
-        <p className="flex-1 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-          {message ?? <span className="text-faint italic">encrypted message</span>}
-        </p>
+        <div className="flex-1 min-w-0">
+          {message !== null ? (
+            <CollapsibleText text={message} className="text-[15px] leading-relaxed" />
+          ) : (
+            <p className="text-faint italic text-[15px]">encrypted message</p>
+          )}
+        </div>
         <div className="text-right shrink-0">
           <div className="amount text-xl font-bold">
             {formatKas(BigInt(amountSompi))}
