@@ -534,10 +534,32 @@ construct it. Reviewer measured a 2-input example at mass 976, fee
 97,600 sompi, storage mass 0 — i.e. cheap and standard, not exotic.
 Scale: 20 expired 100-KAS Asks from one sender → sender receives ~100
 KAS, miner takes ~1,900 KAS.
-EXPLOIT VIABILITY: reasoned from per-input script semantics, **not yet
-proven on chain**. Cheapest possible proof: two Asks from one wallet on
-TN10, one batched refund — this is the first thing the hardening block
-must do, before designing the fix.
+EXPLOIT VIABILITY: **PROVEN ON CHAIN, 2026-08-04** (TN10). Probe:
+`spike/07-batch-refund-drain.cjs`. Two distinct covenants from one
+sender (1 KAS and 3 KAS, distinct P2SH addresses, same deadline) were
+funded by lock tx
+`ceb03d9b577c00445cc0f6a5f50b9540a7040f3844e491af8d9bc62429c52edd`,
+then spent AFTER the deadline by ONE signature-less transaction with
+BOTH covenant UTXOs as inputs and ONE output:
+`ab5575a6efb645b8ef57d0ec251a481efb80f8b00e9f052b71f5d277bfd73566`
+— **accepted by consensus**.
+R2 dual verification (independent recomputation over a FRESH RPC
+connection, node UTXO index only — not the submitting node's word):
+  - covenant UTXOs remaining: **0** (both consumed)
+  - outputs to the sender from the drain tx: **1**
+  - sender actually received: **2.995 KAS**
+  - locked in total: **4 KAS**
+  - two honest separate refunds would have paid: **3.99 KAS**
+  - **measured shortfall: 0.995 KAS**, captured as miner fee
+The verdict is written only when the node-measured shortfall is
+positive AND exactly one output reached the sender; the pre-broadcast
+intent figures are printed but never feed the verdict. Covenant
+addresses: A `kaspatest:prxkf3tl2fh3qjt2tvv0q4pmj4r72gekd6hv3gqv2clm3scukxz523xtqstsu`,
+B `kaspatest:pz3hcg3v2ufq8kr90vuds2q0km7x8hqwf6zkhjgz4cm63p5kfuxrj8uuk52d7`.
+This escalates F12 from "reasoned" to **demonstrated value loss**: the
+sender lost an entire Ask's principal, and nothing about the attack
+required a key, privileged data, or mining capability beyond including
+one's own transaction.
 FIX IS EXPRESSIBLE TODAY: I confirmed against the pinned SDK that
 `OpTxInputCount` (179), `OpTxInputIndex` (185) and `OpTxInputAmount`
 (190) all exist. Minimum: pin `OpTxInputCount == 1`. Better:
