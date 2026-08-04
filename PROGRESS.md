@@ -424,16 +424,36 @@ the lock explicitly.
 
 ### Queued post-tag work (v1.0 polish — human-approved, NOT gate-blocking)
 
-1. **"Earned" widget** (queued 2026-08-04; first in queue — the hide
-   feature ahead of it already shipped): persistent header widget near
-   the wallet chip, every tab — total net TKAS claimed by the connected
-   wallet (sum of claim outputs received minus fees). MUST be
-   chain-derived and consistent with rebuild-from-chain (derivable from
-   answered asks where the wallet is recipient; the claim tx's single
-   output IS the net). The claim success moment should visibly tick the
-   counter up. Rationale: recipient-side retention/dopamine + a
-   shareable proof-of-earnings surface. (Sender-side "refunded back"
-   total → IDEAS.md.)
+1. ~~**"Earned" widget**~~ — **SHIPPED 2026-08-04** as the centerpiece of
+   the glass header (human pulled it forward into the visual pass).
+   Chain-derived: `claimNetSompi` = sum of the claim tx's outputs paying
+   the recipient, read from the same REST spender lookup the status
+   derivation already does — rebuild-consistent by construction. Ticks
+   up (350ms pop, reduced-motion aware) the moment a claim lands.
+   (Sender-side "refunded back" total → IDEAS.md.)
+
+### Visual pass — refined glassmorphism (human-directed, 2026-08-04)
+
+Frosted translucent surfaces on the dark ground: `.glass` utility
+(white/5 fill, 14px backdrop blur, 1px white/10 edge + inset top-edge
+highlight), sticky blurred header that content slides beneath, two fixed
+faint teal radial glows behind everything so the blur has depth to catch.
+Micro-motion budget: card ease-in 240ms, badge fade 200ms, Earned tick
+350ms — all disabled under `prefers-reduced-motion`. Blur is confined to
+the header and cards (performance budget); honesty labels stay
+high-contrast — the TESTNET badge sits on a SOLID background chip, never
+on translucency, and the compose honesty line was bumped a contrast
+step. §5's calm voice kept — glass, not disco.
+
+**F10 (gate observation, fixed in this pass) — status/timer precedence:**
+countdowns kept ticking on answered/refunded cards, and expiring timers
+overwrote terminal states with deadline-passed styling. Fix: terminal
+states take absolute precedence — settled cards never render a countdown
+and instead show resolution-relative time ("answered 12m ago") derived
+from the resolving tx's `block_time` (REST field verified on the real
+claim tx 2026-08-04; epoch ms). Deadline-expiry styling now applies only
+to awaiting-reply cards. A UI comment marks displayed times as estimates
+over the DAA-denominated deadline (ASKSPEC §8 already says so).
 2. **Dev-only short deadline chip** (queued 2026-08-04): a "2 min
    (testing)" option in the compose deadline picker, visible ONLY in
    development builds (env-gated — e.g. NODE_ENV/NEXT_PUBLIC flag),

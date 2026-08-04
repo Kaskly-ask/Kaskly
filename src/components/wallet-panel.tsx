@@ -46,7 +46,7 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="w-full border-b border-border bg-card">
+    <div className="w-full glass border-b border-white/10">
       <div className="max-w-2xl mx-auto px-4 py-4 text-sm space-y-3">
         {wallet ? (
           <>

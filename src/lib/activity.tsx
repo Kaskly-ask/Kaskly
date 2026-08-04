@@ -35,6 +35,10 @@ export interface LiveAsk extends AskRecordDto {
    *  Firehose discoveries only ever enter the list as "ok". */
   verification: "pending" | "ok" | "failed";
   replyCiphertext: string | null;
+  /** Net sompi the recipient received when answered (chain-derived). */
+  claimNetSompi: string | null;
+  /** When the claim/refund was mined, epoch ms (F10 resolution time). */
+  resolvedAtMs: number | null;
 }
 
 const RE_DERIVE_MS = 45_000;
@@ -63,6 +67,9 @@ interface ActivityContextValue {
   unreadSent: number;
   /** Mark the given role's current items as seen (call from the pages). */
   markSeen: (role: "sender" | "recipient") => void;
+  /** Total net sompi earned by replying — sum of the wallet's claim
+   * outputs, chain-derived and rebuild-consistent ("Earned" widget). */
+  earnedSompi: bigint;
 }
 
 const ActivityContext = createContext<ActivityContextValue | null>(null);
@@ -110,6 +117,8 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
         refundTxid: d.refundTxid ?? record.refundTxid,
         verification: d.verified ? "ok" : "failed",
         replyCiphertext: d.replyCiphertext,
+        claimNetSompi: d.claimNetSompi,
+        resolvedAtMs: d.resolvedAtMs,
       };
       if (!d.verified) return live; // never cache/surface unverified as real
       if (
@@ -146,6 +155,8 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
             ...r,
             verification: "pending" as const,
             replyCiphertext: null,
+            claimNetSompi: null,
+            resolvedAtMs: null,
           }))
         );
         setLoading(false);
@@ -221,9 +232,10 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
               a.lockTxid.toLowerCase() === ref && a.senderAddress === address
                 ? {
                     ...a,
-                    status: "answered",
+                    status: "answered" as const,
                     claimTxid: txid,
                     replyCiphertext: message,
+                    resolvedAtMs: Date.now(),
                   }
                 : a
             )
@@ -307,6 +319,22 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     [asks, address]
   );
 
+  const earnedSompi = useMemo(() => {
+    if (!address) return 0n;
+    let sum = 0n;
+    for (const a of asks) {
+      if (
+        a.recipientAddress === address &&
+        a.status === "answered" &&
+        a.verification !== "failed" &&
+        a.claimNetSompi
+      ) {
+        sum += BigInt(a.claimNetSompi);
+      }
+    }
+    return sum;
+  }, [asks, address]);
+
   // Background-tab awareness: unread count in the document title.
   useEffect(() => {
     const total = unreadInbox + unreadSent;
@@ -315,7 +343,16 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
 
   return (
     <ActivityContext.Provider
-      value={{ asks, loading, error, upsertLocal, unreadInbox, unreadSent, markSeen }}
+      value={{
+        asks,
+        loading,
+        error,
+        upsertLocal,
+        unreadInbox,
+        unreadSent,
+        markSeen,
+        earnedSompi,
+      }}
     >
       {children}
     </ActivityContext.Provider>

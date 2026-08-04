@@ -3,7 +3,7 @@
 // bold tabular figure, countdown always visible. Message/reply text renders
 // through React text nodes only (XSS-inert by construction — never
 // dangerouslySetInnerHTML).
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { DAA_PER_SECOND, explorerTxUrl, formatKas, shortAddress } from "@/lib/config";
 import type { AskStatus } from "@/lib/ask-record";
 
@@ -41,6 +41,9 @@ export function CollapsibleText({
   );
 }
 
+/** Displayed times are ESTIMATES over a DAA-denominated deadline (the
+ * chain counts DAA score, ~10/s — ASKSPEC §8); small drift against real
+ * block pace is expected. Smoothing of resync jumps is queued post-tag. */
 export function Countdown({
   deadline,
   daaScore,
@@ -65,6 +68,37 @@ export function Countdown({
   return (
     <span className="text-teal text-xs amount" title={`deadline at DAA score ${deadline}`}>
       {text} left
+    </span>
+  );
+}
+
+/** Resolution-relative time for settled cards (F10): terminal states take
+ * absolute precedence — no countdown ever ticks on an answered/refunded
+ * card. Freshness comes from the parent's regular re-renders (DAA poll). */
+export function ResolvedAgo({ resolvedAtMs }: { resolvedAtMs: number | null }) {
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNowMs(Date.now());
+    queueMicrotask(tick);
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  if (resolvedAtMs === null || nowMs === null) return null;
+  const secs = Math.max(0, Math.floor((nowMs - resolvedAtMs) / 1000));
+  const text =
+    secs < 60
+      ? "just now"
+      : secs < 3600
+        ? `${Math.floor(secs / 60)}m ago`
+        : secs < 86400
+          ? `${Math.floor(secs / 3600)}h ago`
+          : `${Math.floor(secs / 86400)}d ago`;
+  return (
+    <span
+      className="text-muted text-xs amount"
+      title={new Date(resolvedAtMs).toLocaleString()}
+    >
+      {text}
     </span>
   );
 }
@@ -130,6 +164,7 @@ export function AskCard({
   deadline,
   daaScore,
   status,
+  resolvedAtMs = null,
   badge,
   footer,
   children,
@@ -142,6 +177,8 @@ export function AskCard({
   deadline: string;
   daaScore: bigint | null;
   status: AskStatus;
+  /** Epoch ms when the claim/refund was mined (settled cards, F10). */
+  resolvedAtMs?: number | null;
   /** Extra chip(s) in the status row (e.g. the §4 escrow-verified badge). */
   badge?: ReactNode;
   /** Explorer links row. */
@@ -150,7 +187,7 @@ export function AskCard({
   children?: ReactNode;
 }) {
   return (
-    <article className="bg-card border border-border rounded-xl p-5 space-y-4">
+    <article className="glass border border-white/10 rounded-xl p-5 space-y-4 animate-card-in">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {message !== null ? (
@@ -169,7 +206,13 @@ export function AskCard({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <StatusChip status={status} />
         {badge}
-        <Countdown deadline={deadline} daaScore={daaScore} />
+        {/* F10 precedence: terminal states never show a ticking countdown —
+            deadline logic applies only while a reply is still possible. */}
+        {status === "answered" || status === "refunded" ? (
+          <ResolvedAgo resolvedAtMs={resolvedAtMs} />
+        ) : (
+          <Countdown deadline={deadline} daaScore={daaScore} />
+        )}
         <span
           className="text-xs text-faint font-mono"
           title={counterpartyAddress}

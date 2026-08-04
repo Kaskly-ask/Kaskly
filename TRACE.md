@@ -58,6 +58,8 @@ evidence recorded in PROGRESS.md).
 | Mass-scaled claim fees (F7) | §5.2 | transactions.ts quoteClaimFee (SDK calculateTransactionFee, iterated, floored); asks-client estimateReplyClaim (UI quote) | UNIT fees.test.ts; INT fees.test.ts GREEN on TN10 (near-limit reply accepted, exact net recomputed from consensus UTXO set — R2 dual); human gate PASSED | verified |
 | Activity awareness (F8) | §3.2 UX, §8 rule 1 app-wide | activity.tsx provider (badges, title count, seen-state); header UnreadBadge | human check PASSED (gate 2026-08-04) | verified |
 | Hide/unhide settled cards (F9) | §3.2 UX | use-hidden.ts; HiddenSection; settled-only rule in pages | human check PASSED (gate 2026-08-04) | verified |
+| Earned widget (chain-derived net claims) | §3.3 consistency, post-tag queue #1 | activity.tsx earnedSompi (claimNetSompi from REST spender outputs); header.tsx EarnedWidget | derives from same REST lookup as verified status derivation; visual check pending human | built |
+| Status/timer precedence + resolution time (F10) | §3.2 UX | ask-card.tsx (settled → ResolvedAgo from block_time, never Countdown) | block_time field verified on real TN10 claim tx; visual check pending human | built |
 
 ## Chain layer (C)
 

@@ -43,6 +43,7 @@ function SentItem({
       deadline={ask.deadline}
       daaScore={daaScore}
       status={ask.status}
+      resolvedAtMs={ask.resolvedAtMs}
       footer={
         <>
           <ExplorerLink txid={ask.lockTxid} label="lock" />

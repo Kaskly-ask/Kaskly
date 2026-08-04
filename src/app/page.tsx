@@ -124,7 +124,7 @@ export default function ComposePage() {
         </p>
       )}
 
-      <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      <div className="glass border border-white/10 rounded-xl p-5 space-y-4 animate-card-in">
         <label className="block space-y-1.5">
           <span className="text-xs text-muted">To — Kaspa address or .kas name</span>
           <input
@@ -206,8 +206,8 @@ export default function ComposePage() {
           {phase === "sending" ? "Locking funds…" : "Send Ask"}
         </button>
 
-        {/* Honesty line — mirrors TRUST.md; what the chain actually enforces. */}
-        <p className="text-xs text-faint leading-relaxed pt-1 border-t border-border/60">
+        {/* Honesty line — mirrors TRUST.md; stays high-contrast on glass. */}
+        <p className="text-xs text-muted leading-relaxed pt-1 border-t border-white/10">
           Enforced on-chain: only the recipient can claim, and only with a
           transaction that carries a reply. After the deadline, the refund
           needs nobody&apos;s permission and can only pay you back — a reply,

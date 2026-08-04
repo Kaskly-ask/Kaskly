@@ -78,9 +78,16 @@ function InboxItem({
     setError(null);
     try {
       const rpc = await getRpc();
-      const { claimTxid } = await claimAsk(rpc, ask, wallet.privateKey, reply);
+      const { claimTxid, net } = await claimAsk(rpc, ask, wallet.privateKey, reply);
       setNote(ask.askRef, "reply", reply);
-      onChanged({ ...ask, status: "answered", claimTxid });
+      // Feeds the Earned widget tick-up + the "answered just now" state.
+      onChanged({
+        ...ask,
+        status: "answered",
+        claimTxid,
+        claimNetSompi: net.toString(),
+        resolvedAtMs: Date.now(),
+      });
       setReply("");
     } catch (e) {
       setError(
@@ -102,6 +109,7 @@ function InboxItem({
       deadline={ask.deadline}
       daaScore={daaScore}
       status={ask.status}
+      resolvedAtMs={ask.resolvedAtMs}
       badge={
         ask.verification === "ok" ? (
           <span

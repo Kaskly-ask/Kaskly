@@ -1,9 +1,9 @@
-// Browser-side ask store. Every status shown in the UI is DERIVED FROM
-// CHAIN STATE here (brief §3.3 — the DB is a cache; ASKSPEC §7 defines the
+﻿// Browser-side ask store. Every status shown in the UI is DERIVED FROM
+// CHAIN STATE here (brief Â§3.3 â€” the DB is a cache; ASKSPEC Â§7 defines the
 // derivation); the cache API only makes lists survive reloads. This module
-// also carries the two NORMATIVE client rules of ASKSPEC §8:
+// also carries the two NORMATIVE client rules of ASKSPEC Â§8:
 //   1. anyone-can-trigger refund is auto-broadcast once the deadline passes
-//      (maybeAutoRefund — called by BOTH sender and recipient screens);
+//      (maybeAutoRefund â€” called by BOTH sender and recipient screens);
 //   2. claim construction is refused once currentDaa >= deadline
 //      (claimAsk throws DeadlinePassedError before touching the covenant).
 import type { RpcClient } from "kaspa-wasm";
@@ -12,7 +12,7 @@ import { NETWORK_ID, REST_API_BASE } from "./config";
 
 export class DeadlinePassedError extends Error {
   constructor() {
-    super("deadline passed — funds have been returned to the sender");
+    super("deadline passed â€” funds have been returned to the sender");
   }
 }
 
@@ -41,12 +41,14 @@ export async function clearCache(): Promise<void> {
 }
 
 // ---------- REST (spending-tx lookup; endpoint shape verified against the
-// Phase 2 refund lifecycle on TN10, 2026-08-03 — see PROGRESS.md) ---------
+// Phase 2 refund lifecycle on TN10, 2026-08-03 â€” see PROGRESS.md) ---------
 
 interface RestTxLite {
   transaction_id: string;
   payload: string | null;
   is_accepted?: boolean;
+  /** Epoch milliseconds (verified on TN10 2026-08-04). */
+  block_time?: number;
   outputs: Array<{
     index: number;
     amount: number | string;
@@ -73,7 +75,7 @@ async function restGet<T>(path: string, tries = 4): Promise<T> {
   throw lastErr;
 }
 
-// ---------- covenant reconstruction (ASKSPEC §3/§4) ----------------------
+// ---------- covenant reconstruction (ASKSPEC Â§3/Â§4) ----------------------
 
 export interface CovenantView {
   redeemScriptHex: string;
@@ -81,8 +83,8 @@ export interface CovenantView {
   minRefund: bigint;
 }
 
-/** Rebuild the covenant purely from the announced/cached parameters —
- * the §4 verification predicate is "does THIS reproduce the funded P2SH". */
+/** Rebuild the covenant purely from the announced/cached parameters â€”
+ * the Â§4 verification predicate is "does THIS reproduce the funded P2SH". */
 export async function covenantFor(record: {
   senderAddress: string;
   recipientAddress: string;
@@ -105,16 +107,23 @@ export async function covenantFor(record: {
   return { ...cov, minRefund };
 }
 
-// ---------- chain-derived status (ASKSPEC §7) ----------------------------
+// ---------- chain-derived status (ASKSPEC Â§7) ----------------------------
 
 export interface DerivedState {
-  /** §4: announced parameters reproduce the P2SH the lock tx funded. */
+  /** Â§4: announced parameters reproduce the P2SH the lock tx funded. */
   verified: boolean;
   status: AskStatus;
   claimTxid: string | null;
   refundTxid: string | null;
   /** kasia1 reply ciphertext from the claim tx payload, when answered. */
   replyCiphertext: string | null;
+  /** Net sompi the recipient received from the claim tx (sum of its
+   * outputs paying the recipient) â€” chain-derived, feeds "Earned". */
+  claimNetSompi: string | null;
+  /** When the resolving tx (claim or refund) was mined, epoch ms â€” feeds
+   * "answered/refunded Xm ago" (F10: settled cards show resolution time,
+   * never a ticking countdown). */
+  resolvedAtMs: number | null;
 }
 
 export async function deriveStatusFromChain(
@@ -140,11 +149,13 @@ export async function deriveStatusFromChain(
       claimTxid: null,
       refundTxid: null,
       replyCiphertext: null,
+      claimNetSompi: null,
+      resolvedAtMs: null,
     };
   }
 
   // Covenant address has no UTXO: either spent (answered/refunded) or the
-  // announcement never matched a funded escrow (§4 → malformed).
+  // announcement never matched a funded escrow (Â§4 â†’ malformed).
   const hist = await restGet<RestTxLite[]>(
     `/addresses/${encodeURIComponent(cov.p2shAddress)}/full-transactions?limit=50&resolve_previous_outpoints=light`
   );
@@ -163,14 +174,16 @@ export async function deriveStatusFromChain(
     )
   );
   if (!funded || !spender) {
-    // Not funded → announcement is malformed per §4; funded-but-no-spender
-    // should not happen once the UTXO is gone — surface as unverified.
+    // Not funded â†’ announcement is malformed per Â§4; funded-but-no-spender
+    // should not happen once the UTXO is gone â€” surface as unverified.
     return {
       verified: false,
       status: record.status,
       claimTxid: record.claimTxid,
       refundTxid: record.refundTxid,
       replyCiphertext: null,
+      claimNetSompi: null,
+      resolvedAtMs: null,
     };
   }
   // Classify the spend: a claim carries a reply payload referencing us.
@@ -180,16 +193,21 @@ export async function deriveStatusFromChain(
       parsed?.kind === "reply" &&
       parsed.envelope.ref.toLowerCase() === record.lockTxid.toLowerCase()
     ) {
+      const claimNet = spender.outputs
+        .filter((o) => o.script_public_key_address === record.recipientAddress)
+        .reduce((sum, o) => sum + BigInt(o.amount), 0n);
       return {
         verified: true,
         status: "answered",
         claimTxid: spender.transaction_id,
         refundTxid: null,
         replyCiphertext: parsed.envelope.message,
+        claimNetSompi: claimNet.toString(),
+        resolvedAtMs: spender.block_time ?? null,
       };
     }
   } catch {
-    /* malformed payload on the spender — treat as non-reply spend */
+    /* malformed payload on the spender â€” treat as non-reply spend */
   }
   return {
     verified: true,
@@ -197,6 +215,8 @@ export async function deriveStatusFromChain(
     claimTxid: null,
     refundTxid: spender.transaction_id,
     replyCiphertext: null,
+    claimNetSompi: null,
+    resolvedAtMs: spender.block_time ?? null,
   };
 }
 
@@ -241,7 +261,7 @@ export async function sendAsk(
   return record;
 }
 
-/** Estimate the claim fee/net for a reply BEFORE claiming — used by the
+/** Estimate the claim fee/net for a reply BEFORE claiming â€” used by the
  * reply box UI. Builds a size-identical synthetic transaction (fabricated
  * outpoint, placeholder ciphertext of the exact encrypted length) and runs
  * the same mass-based quote the real claim uses. No network access. */
@@ -317,7 +337,7 @@ export async function claimAsk(
     // by quoteClaimFee): translate the node's raw message (F7).
     if (/under the required amount|transient mass/i.test(msg)) {
       throw new Error(
-        "The network requires a larger fee for a reply this size — try shortening your reply."
+        "The network requires a larger fee for a reply this size â€” try shortening your reply."
       );
     }
     throw e;
@@ -350,7 +370,7 @@ export async function maybeAutoRefund(
     await cacheAsk({ ...record, status: "refunded", refundTxid: transactionId });
     return transactionId;
   } catch (e) {
-    // A racing watcher may have refunded first (double-spend rejection) —
+    // A racing watcher may have refunded first (double-spend rejection) â€”
     // that is success for the protocol; re-derivation will settle status.
     if (isChainRejection(e)) return null;
     throw e;

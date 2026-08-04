@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
-/* Kaskly theme (brief §5): dark near-black, Kaspa teal #49EACB as the single
-   accent, calm honesty labels. Dark-only by design. */
+/* Kaskly theme (brief §5 + 2026-08-04 glass pass): dark near-black ground,
+   Kaspa teal #49EACB as the single accent, refined glassmorphism — frosted
+   translucent surfaces over a faint teal ambient glow. Honesty labels stay
+   high-contrast and never sit on translucency. Dark-only by design. */
 :root {
   --background: #0a0a0a;
   --foreground: #e8eaea;
@@ -38,8 +40,84 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/* Ambient teal glow — gives the backdrop blur depth to catch. Fixed and
+   paint-only (no repaint on scroll, pointer-events never involved). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(640px 420px at 82% -8%, rgba(73, 234, 203, 0.09), transparent 70%),
+    radial-gradient(720px 520px at -12% 108%, rgba(73, 234, 203, 0.055), transparent 70%);
+}
+
+/* Frosted glass surface: translucent fill + blur + 1px top-edge highlight.
+   Border is composed via utilities at the call site (border-white/10) so
+   edges can vary per surface. Performance budget: .glass appears on the
+   header and on cards only — never nested, never on scrolling lists'
+   wrappers. */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
 /* Amounts are always tabular figures (brief §5). */
 .amount {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+}
+
+/* Restrained micro-motion (glass, not disco). */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-card-in {
+  animation: card-in 240ms ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 200ms ease-out both;
+}
+
+@keyframes tick-up {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.animate-tick-up {
+  animation: tick-up 350ms ease-out;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-in,
+  .animate-fade-in,
+  .animate-tick-up {
+    animation: none;
+  }
 }
