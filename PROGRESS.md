@@ -92,6 +92,18 @@ Written truthfully instead as: "doesn't need to be in crypto — a wallet
 is two clicks in a browser, no exchange, no purchase… KAS they earned,
 not bought." Human may veto/adjust.
 
+### Share copy revision — final workshopped versions (human, 2026-08-05)
+
+Card CTA replaced with: "Ask me anything — an answer, or your money
+back. Guaranteed by on-chain math." (hook line rendered in teal;
+sub-lines kept). All three paste-ready posts replaced with the
+workshopped set, in the human's order. **Tone rationale (recorded per
+instruction): the posts are excited-share energy, not solicitation —
+the refund guarantee is the emotional center, and "guaranteed by
+on-chain math" is the recurring hook line.** Noted, no action this
+pass: "Guaranteed by on-chain math" is a candidate reusable tagline
+element (e.g. landing page).
+
 ### DNS milestone (human report, 2026-08-05)
 
 **kaskly.app is LIVE with valid TLS** — the DNS switch happened before

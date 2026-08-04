@@ -60,10 +60,13 @@ export function ShareAsk({ address }: { address: string }) {
     setTimeout(() => setCopied(null), 1500);
   };
 
+  // Workshopped 2026-08-05: excited-share energy, not solicitation — the
+  // refund guarantee is the emotional center, "guaranteed by on-chain
+  // math" the recurring hook.
   const posts = [
-    `Just set up my Kaskly — send me a question with KAS attached: ${askUrl}`,
-    `My inbox has a price now. If I reply, I keep the KAS; if I don't, you get every cent back — automatically: ${askUrl}`,
-    `Ask me anything, with money where your mouth is. A reply or your refund, enforced on-chain: ${askUrl}`,
+    `Hey everyone — I'm on Kaskly now! Send me questions and I'll reply, or your money back, guaranteed by on-chain math: ${askUrl}`,
+    `This is cool — you can now ask me anything on Kaskly! Attach some KAS to your question: I answer, I earn it. I go silent, you get every cent back automatically. No trust needed, just math: ${askUrl}`,
+    `Ask me anything on Kaskly. An answer or your refund — the chain enforces it: ${askUrl}`,
   ];
 
   return (
