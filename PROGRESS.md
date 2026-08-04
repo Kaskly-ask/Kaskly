@@ -118,6 +118,19 @@ clientWidth on every route (zero overflow), including with the wallet
 panel OPEN and the share preview rendered at 390px. Deployed for the
 human's real-phone confirmation.
 
+### B5 follow-up — deliberate mobile header (human-approved from
+screenshots, 2026-08-05)
+
+The wrapped second row read as a desktop leftover; replaced with a
+COMPOSED two-row mobile header: row 1 = wordmark + compact right cluster
+(TESTNET chip + solid teal "Connect" when disconnected / address chip
+alone when connected); row 2 = Ask/Inbox/Sent as a full-width segmented
+tab row with a teal active underline and unread badges. Desktop (sm+)
+unchanged from the approved single-row layout. TESTNET visible at every
+width; overflow-x clip backstop retained. Verified: zero overflow on all
+routes at 390px AND 360px (iframe-constrained viewports, prod build);
+three states screenshot-reviewed and approved by the human before push.
+
 ### Share copy revision — final workshopped versions (human, 2026-08-05)
 
 Card CTA replaced with: "Ask me anything — an answer, or your money
