@@ -407,31 +407,39 @@ below): lifecycle from automated tests, three terminal states with txids,
 R2 dual verification, R3 attack set green, ASKSPEC v0.1 consistent with
 code, TRUST.md current, tagged `phase-2` (commit `86d5cc3`).
 
-### Notes for the next session (R7 ritual) — updated at session park, 2026-08-04
+### Notes for the next session (R7 ritual) — updated at session park, 2026-08-05
 
-**WHERE WE STOPPED:** Phase 4 is fully built (pitch package + beta
-scope); the session parked awaiting HUMAN-LED steps. Nothing is in
-flight; working tree clean; everything on origin/main.
+**WHERE WE STOPPED — LAUNCH-READY.** Everything is built, verified,
+committed, and on origin/main; the app is LIVE at kaskly.app (Render,
+auto-deploys on push); the repo is PUBLIC (human flipped it; in-product
+"open source" trust links live in footer + landing); all beta posts are
+written (BETA.md blurb + the three share-card paste texts); PWA shipped
+(installable, SW verified — icons are brand-direction placeholders
+pending the human's external assets, regenerate via
+scripts/gen-icons.mjs when they land). Nothing in flight, nothing
+stashed; local prod server stopped at park.
 
-**What happens next (in order, mostly human):**
-1. Human deploys per **DEPLOY.md** (Render/Railway node host + disk),
-   creates the Discord beta thread, sets `NEXT_PUBLIC_FEEDBACK_URL`
-   before first build, does the Cloudflare DNS steps for kaskly.app.
-2. Human runs the two Phase 4 gate legs: **demo dry-run** (PITCH.md
-   script — works even better on the live URL) and **fresh clone via
-   README only** (the host build largely covers this).
-3. On acceptance: flip remaining TRACE rows (C5→verified, P1 stranger
-   check, Earned/F10 rows), tag `phase-4`, push with tags (standing
-   instruction: push at every phase tag).
-4. Then the Discord beta runs; **PITCH.md / public launch is SEQUENCED
-   AFTER beta feedback** (human instruction). Repo going public is a
-   human decision before the pitch goes out (PITCH links the repo).
+**THE REMAINING LAUNCH SEQUENCE (all human-led, in order):**
+1. Create the Discord beta thread.
+2. Render env session: set `NEXT_PUBLIC_FEEDBACK_URL` (thread URL) +
+   `NEXT_PUBLIC_BETA_MIN_DEADLINE_SECONDS` (e.g. 120) → auto-rebuild.
+3. Witness a full refund cycle ON PROD with the soak chip.
+4. Remove the soak flag → auto-rebuild → verify the chip is GONE
+   (DEPLOY.md checklist item 1).
+5. Phone pass on kaskly.app (incl. PWA Add-to-Home-Screen on Android +
+   iOS — full-screen branded launch) + scan a share-card QR end-to-end.
+6. Fire the posts (BETA.md blurb into the thread; share cards to X).
+
+Also still open (non-blocking, post-beta): Phase 4 gate formalities —
+demo dry-run + fresh-clone check, TRACE flips (C5, Earned, F10),
+tag `phase-4` + push with tags; PITCH.md sequenced after beta feedback.
 
 **Session ritual:** read this file + TRACE.md; `npm test` (**26 unit
-tests**, sub-second) must be green before new work. Dev server was
-stopped at park — restart with `npm run dev` (localhost:3000).
+tests**, sub-second) must be green before new work. Local mirror:
+`npm run build && npm start` (prod) or `npm run dev`.
 `npm run test:integration` re-proves the TN10 lifecycle+attacks+fees
-+rebuild (~3 min, costs a little TKAS).
++rebuild (~3 min, costs a little TKAS). PRIVATE-IDEAS.md is gitignored
+and local-only — do not commit it.
 
 **Standing facts:**
 - **`spike/.keys.json` is gitignored and holds the FUNDED testnet keys**
