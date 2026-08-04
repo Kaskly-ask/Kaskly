@@ -3,6 +3,8 @@
 // (K-Kluster/Kasia src/service/integrations/kns-integration-service.ts,
 // fetched 2026-08-03): GET {root}/{name}/owner → { success, data: { owner,
 // asset, id } }, response asset must echo the queried name.
+// Live example: the project's own identity `kaskly.kas` (KNS inscription
+// #96310, held in the project wallet) resolves through this exact path.
 import { NETWORK_ID } from "./config";
 
 const KNS_ROOTS: Record<string, string> = {

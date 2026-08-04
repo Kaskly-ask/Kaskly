@@ -5,6 +5,23 @@
 **Phase 3 — Reference client. BUILD COMPLETE; AWAITING THE HUMAN
 END-TO-END GATE TEST (dev server running at http://localhost:3000).**
 
+### Project identity assets (from the human, 2026-08-04)
+
+- **kaskly.app is registered** (Cloudflare; WHOIS privacy on; DNSSEC
+  pending). It is the PRODUCTION DEPLOY TARGET FOR PHASE 4. Deployment
+  and DNS are a later, human-led step — no deploy config gets built now.
+- **kaskly.kas is registered** — KNS inscription **#96310**, held in the
+  project wallet. It is the project's on-chain identity.
+- Where these get incorporated (only where phases already touch them):
+  - Phase 4 README rewrite: kaskly.app as the live URL; kaskly.kas as
+    the on-chain identity.
+  - ASKSPEC / PITCH contact lines (Phase 4, alongside Q5): cite
+    kaskly.kas.
+  - Reference client kns.ts: kaskly.kas as a display/verification
+    example (done 2026-08-04 — source comment + compose placeholder).
+- Envelope-spec implications (verified-sender identity via KNS) are
+  parked in IDEAS.md — not current scope.
+
 ### Phase 3 context (from the human, 2026-08-03)
 
 - **Branding:** the reference client is branded **"Kaskly"**, tagline

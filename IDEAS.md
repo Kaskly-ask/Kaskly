@@ -28,3 +28,10 @@ _Anything out of scope for the ASK v2.0 brief lands here instead of in code
 ## Later entries
 
 _(add below as they come up)_
+
+- **Verified-sender identity via KNS in the envelope spec** (parked
+  2026-08-04): the project now holds kaskly.kas (KNS inscription #96310),
+  and an ask envelope COULD carry a claimed KNS name that clients verify
+  against the KNS owner address (sender identity display, anti-phishing).
+  Envelope/spec change → explicitly out of current scope; revisit with
+  the Kasia team conversation or a v2 spec discussion.

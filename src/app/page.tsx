@@ -127,7 +127,7 @@ export default function ComposePage() {
           <input
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
-            placeholder="kaspatest:… or name.kas"
+            placeholder="kaspatest:… or a .kas name (like kaskly.kas)"
             className="w-full bg-card-raised border border-border rounded-md px-3 py-2 font-mono text-sm focus:border-teal/50 focus:outline-none"
           />
         </label>
