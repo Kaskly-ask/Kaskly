@@ -98,6 +98,26 @@ evidence recorded in PROGRESS.md).
 | R7 | Session-start ritual | PROGRESS.md session log | ritual performed every session incl. phase-4 close (26/26 green before work) | verified |
 | R8 | Stop conditions honored | Phase gates 0-4 stopped for human; F1 escalated not decided; mainnet decisions gated on human answers (2026-08-04) | — | verified |
 
+## Covenant V3 (F12/F22/F13/F21/F20) — IN PROGRESS, NOT PROVEN
+
+| Item | Spec basis | Implementation | Tests | Status |
+|------|-----------|----------------|-------|--------|
+| V3 redeem script | COVENANT-V3-DESIGN.md | src/lib/ask/covenant-v3.ts (V2 covenant.ts untouched — in-flight Asks stay readable) | authored only; NOT proven | built |
+| F12 refund input pinning | design §1 | covenant-v3.ts refund branch (OpTxInputCount==1) | probe 07 must flip CONFIRMED→REFUTED against V3 | unstarted |
+| F12/F13/F21 floor from input amount | design §1,§3,§4 | covenant-v3.ts floor sequence | opcode sequence byte-identical to spike 11b Q4, which was chain-proven (below-floor rejected / above-floor accepted, 27f38aeb…); V3-level proof pending campaign | built |
+| F22 askId binding (M1) | design §2 | covenant-v3.ts claim branch | new probe 08 (cross-Ask claim) | unstarted |
+| **GATE: OpTxPayloadLen behaviour** | design §0, §2 | covenant-v3.ts length guard | spike 11c GATE PASS 2026-08-04 (control passed; guard alone: 49 rejected / 51 accepted; real offsets: 17 and 49 rejected, wrong askId rejected, correct 50-byte accepted 0c5da1bd…) | verified |
+| F20 measured DAA rate | design §5 | client-side, not authored yet | probe 10 | unstarted |
+| F14 client status classification | design §2, F14 | not authored yet — REQUIRED alongside V3 | unit + probe | unstarted |
+
+**Enforcement:** the authoring GATE above is now `verified` (spike 11c).
+No tag may include `src/lib/ask/covenant-v3.ts` until the remaining
+`unstarted` rows are `verified` via the re-proof campaign (design §9):
+probe 07 flipping CONFIRMED→REFUTED against this exact script, cross-Ask
+probe 08, floor probe 09 (incl. the 0.1 KAS refusal), DAA probe 10, the
+full R3 suite green against V3, and a regenerated golden vector. The
+F14 client fix ships with it or neither is complete.
+
 ## R3 adversarial attack set
 
 | Attack | Tests | Status |

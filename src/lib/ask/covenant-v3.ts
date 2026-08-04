@@ -31,13 +31,18 @@
 //     was proven at offset 0 only, which is why the explicit
 //     OpTxPayloadLen guard below is NOT optional. See UNVERIFIED note.
 //
-// UNVERIFIED-STUB — DO NOT SHIP WITHOUT SPIKE 11c (Q3b):
-//   OpTxPayloadLen (196) is used as the length guard on the CRITICAL claim
-//   branch, and its BEHAVIOUR is not yet verified — only its presence in
-//   the enum. Spike 11c must prove it pushes the payload length as a
-//   script number usable by OpGreaterThanOrEqual, accepting at exactly
-//   HEADER+32 and rejecting below, plus substr behaviour at the real
-//   offsets. Until then this script is authored but NOT proven.
+//   • OpTxPayloadLen (196) BEHAVES as a script number under
+//     OpGreaterThanOrEqual — verified in isolation and in this exact claim
+//     shape by spike 11c (2026-08-04), against a passing positive control:
+//       len 49 rejected / len 51 accepted (8a949659…)   [guard alone]
+//       len 17 rejected, len 49 rejected                [real offsets]
+//       len 50 with a WRONG askId rejected              [the F22 property]
+//       len 50 with the correct askId ACCEPTED (0c5da1bd…)
+//     This retires the authoring gate. The script is still NOT proven
+//     end-to-end: the re-proof campaign (design §9) — probe 07 flipping
+//     CONFIRMED→REFUTED, cross-Ask probe 08, floor probe 09, DAA probe 10,
+//     the full R3 suite and a regenerated golden vector — must pass before
+//     this file enters any tag.
 import {
   ScriptBuilder,
   Opcodes,

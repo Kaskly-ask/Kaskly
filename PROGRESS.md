@@ -789,6 +789,41 @@ BigInt with no float path.
    + fixes), not before them — a reviewer who rediscovers F14 learns
    nothing new, and one who sees them documented can go hunting deeper.
 
+### Covenant V3 — authoring gate CLEARED (spike 11c, 2026-08-04)
+
+`src/lib/ask/covenant-v3.ts` is authored (V2 `covenant.ts` untouched, so
+in-flight Asks stay readable). Version marker decided:
+`ciph_msg:1:ask:r2:` — same Kasia namespace, changed subkind, envelope
+`v: 2`; rationale and rejected alternatives in COVENANT-V3-DESIGN.md §10.
+
+**Spike 11c — GATE PASS.** The claim branch's `OpTxPayloadLen` guard
+protects a Critical branch, so its BEHAVIOUR (not just its presence in the
+enum) had to be proven — the Q1 lesson. Against a passing positive
+control (`3a221c91…`):
+- guard in isolation: len 49 **rejected**, len 51 **accepted** (`8a949659…`)
+- real V3 claim shape at real offsets: len 17 **rejected**, len 49
+  **rejected**, len 50 with a WRONG askId **rejected**, len 50 with the
+  correct askId **ACCEPTED** (`0c5da1bd…`)
+
+The wrong-askId rejection at the correct length is the F22 property
+demonstrated directly: a payload of exactly the right shape but a
+different askId cannot claim.
+
+**Floor-direction check (human-requested).** The V3 refund floor sequence
+was diffed against the spike 11b Q4 probe that passed on chain, by
+extracting the call lines from both real source files — **identical, no
+differences**; compiled bytes `00c2b9be03e0930494a2` at allowance 300000.
+Stack order is `[output] [input] [allowance] OpSub OpGreaterThanOrEqual`
+→ `output >= input − allowance`, i.e. the correct direction. An inverted
+compare would have accepted 11b's below-floor spend, which the chain
+rejected.
+
+**Still owed before any tag (design §9):** probe 07 must flip
+CONFIRMED→REFUTED against this exact script; cross-Ask probe 08; floor
+probe 09 incl. the 0.1 KAS non-convergence refusal; DAA probe 10; full R3
+suite green against V3; regenerated golden vector; and the F14 client
+classification fix, which ships with V3 or neither is complete.
+
 ### Notes for the next session (R7 ritual) — updated at session park, 2026-08-05
 
 **WHERE WE STOPPED — LAUNCH-READY.** Everything is built, verified,
