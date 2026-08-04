@@ -69,7 +69,7 @@ evidence recorded in PROGRESS.md).
 | C2 | Escrow properties (lock/claim-with-reply/timeout/no third party/no fees) | covenant.ts | INT: 9 chain-rejected attacks + lifecycle; UNIT golden vector | verified |
 | C3 | Implementation honesty gate (real capabilities, cited) | PROGRESS.md ground truth + findings F1-F5, all source-cited | — | verified |
 | C4 | Explorer link for every tx | ask-card.tsx ExplorerLink (lock/claim/refund on every card); config.ts explorerTxUrl | human click-through PASSED (gate 2026-08-04) | verified |
-| C5 | README cold start | — | — | unstarted |
+| C5 | README cold start | README.md (clone → install → env → migrate → dev; faucet steps; integration-test key setup; testnet-only) | human fresh-clone dry-run at Phase 4 gate | built |
 
 ## Protocol spec (P)
 
@@ -78,7 +78,7 @@ evidence recorded in PROGRESS.md).
 | P1 | ASKSPEC self-contained / stranger-implementable | ASKSPEC.md v0.1 | stranger check at Phase 4 | built |
 | P2 | Payload format, encodings, limits, covenant, semantics, errors | ASKSPEC §§1-9 | UNIT/INT enforce the documented behavior | tested |
 | P3 | Explicit trust model, mirrors TRUST.md | ASKSPEC §10, TRUST.md | — | built |
-| P4 | Attribution + open license (Q5) | ASKSPEC §12 placeholder | — | unstarted |
+| P4 | Attribution + open license (Q5: ISC, © The Kaskly project — human decision 2026-08-04) | LICENSE; ASKSPEC §12; README; PITCH.md | — | verified |
 | P5 | Versioned namespace from day one | ASKSPEC §11 (+ envelope v field) | UNIT (v!=1 rejected) | tested |
 | P6 | Spec updated alongside code | this phase: spec written from proven code | divergence check at each gate | built |
 

@@ -6,6 +6,7 @@ import { ChainProvider } from "@/lib/chain";
 import { ActivityProvider } from "@/lib/activity";
 import { Header } from "@/components/header";
 import { SheenController } from "@/components/sheen-controller";
+import { ConnectionBanner } from "@/components/connection-banner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,6 +40,7 @@ export default function RootLayout({
             <ActivityProvider>
             <SheenController />
             <Header />
+            <ConnectionBanner />
             <main className="w-full max-w-2xl mx-auto flex-1 px-4 pb-16">
               {children}
             </main>

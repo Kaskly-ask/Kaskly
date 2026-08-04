@@ -334,10 +334,17 @@ for v1 permanently.
 
 ## 12. Attribution and license
 
-License and attribution text: **pending (Q5, human decision before
-v0.1 → v1.0).** The reference implementation, on-chain evidence
-(testnet-10 txids for every lifecycle path and attack), and this spec's
-change history live in the ASK reference repository.
+This specification and its reference implementation are
+**© 2026 The Kaskly project** (kaskly.app; on-chain identity
+`kaskly.kas`, KNS inscription #96310), released under the **ISC
+license** — the same license Kasia itself uses. When implementing or
+extending this spec, please attribute "the ASK protocol (Kaskly
+project)".
+
+The reference implementation, the on-chain evidence (testnet-10 txids
+for every lifecycle path and attack), and this spec's change history
+live in the ASK reference repository:
+https://github.com/Kaskly-ask/Kaskly.
 
 ---
 

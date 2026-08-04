@@ -2,6 +2,36 @@
 
 ## Current phase
 
+**Phase 4 — PITCH PACKAGE. BUILD COMPLETE (2026-08-04); AWAITING THE
+HUMAN GATE: dry-run the PITCH.md demo script end-to-end + fresh-clone
+the repo following only the README. Tag `phase-4` after acceptance.**
+
+### Phase 4 build (started on human go after glass acceptance, 2026-08-04)
+
+- **Q5 DECIDED (human): ISC license** (matches Kasia — ecosystem
+  signal), attribution **"The Kaskly project"** (kaskly.app /
+  kaskly.kas). Landed in LICENSE, ASKSPEC §12, README, PITCH.md.
+- **PITCH.md** written from proven material only: mechanic, six
+  clickable TN10 evidence txids (answered pair, refunded pair, V2
+  covenant-hardening pair), the adversarial-suite summary, the
+  what-adopting-takes list for a Kasia client (incl. the two asks for
+  their team: Q3 namespace blessing + cipher interop vector exchange),
+  and the 2-3 minute demo script.
+- **README** rewritten stranger-clonable (C5): cold start (clone →
+  install → env → prisma migrate → dev), faucet steps with the honest
+  bot-protection note, integration-test key setup, repo layout table,
+  architecture paragraph, testnet-only warning, kaskly.app/kaskly.kas
+  identity, ISC.
+- **Error-state polish**: connection-error banner (calm, with Retry)
+  now surfaces wRPC failures instead of leaving screens silently stale
+  (F4 honesty).
+- **Repo cleanup for public eyes**: unused create-next-app template
+  SVGs removed; audit-trail docs (CLAUDE/PROGRESS/TRACE/TRUST/IDEAS,
+  spike/) deliberately KEPT — they are the evidence and the process.
+- TRACE: P4 verified; C5 built (flips at the fresh-clone gate check).
+
+### Old current-phase block (Phase 3, retained for history)
+
 **Phase 3 COMPLETE — gate PASSED (human, 2026-08-04), tagged `phase-3`.
 Post-tag polish queue in progress (glass pass + Earned in flight; then
 dev deadline chip, countdown smoothing). Phase 4 awaits explicit human
