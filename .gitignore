@@ -48,3 +48,6 @@ tests/integration/.txids.json
 *.log
 npm-debug.log*
 .vercel
+
+# derived review bundle
+kaskly-review.zip
