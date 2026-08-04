@@ -187,7 +187,7 @@ export function AskCard({
   children?: ReactNode;
 }) {
   return (
-    <article className="glass border border-white/10 rounded-xl p-5 space-y-4 animate-card-in">
+    <article className="glass-clear rounded-xl p-5 space-y-4 animate-card-in">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {message !== null ? (

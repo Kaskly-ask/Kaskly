@@ -78,25 +78,93 @@ body::after {
   }
 }
 
-/* Frosted glass surfaces. Cards: brighter top-edge highlight, inner light
-   gradient (top-to-bottom), saturating blur so the teal glow warms through.
-   Header (.glass-deep): darker tint but MORE translucent + stronger blur,
-   so scrolling content visibly smears beneath it. Border is composed via
-   utilities at the call site. Performance budget: glass appears on the
-   header and on cards only — never nested. */
-.glass {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.11),
-    rgba(255, 255, 255, 0.04)
-  );
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  backdrop-filter: blur(18px) saturate(1.4);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 8px 28px rgba(0, 0, 0, 0.35);
+/* CLEAR glass panels (2026-08-04 direction change: a clean pane on a dark
+   desk under a lamp — you see the desk THROUGH it, you see the pane by its
+   EDGES). Near-transparent fill, NO blur on cards; the work is done by:
+   a 1px gradient rim stroke (bright where light catches the top edge,
+   fading down), an inner bevel (inset top highlight + faint bottom inner
+   shadow — light bending through the shape), and a barely-there diagonal
+   sheen across the top third. */
+/* Liquid-glass panel (reference: iOS Liquid Glass, human-locked
+   2026-08-04). Properties replicated:
+   - the panel BRIGHTENS its backdrop (brightness lift in a minimal blur)
+     rather than graying it; the hex texture stays readable through it;
+   - the edge is REFRACTION, not a border: a 3px ring (::before) carries
+     its own STRONGER backdrop-filter, so the background visibly smears
+     at the rim; a crisp 1px light stroke (::after) rides on top with
+     brighter top-corner glints and a subtle teal chromatic fringe on the
+     right edge;
+   - the body has a barely-there vertical luminosity gradient + diagonal
+     sheen, brighter at the top. */
+.glass-clear {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(
+      112deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.02) 26%,
+      transparent 40%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.075),
+      rgba(255, 255, 255, 0.045)
+    );
+  -webkit-backdrop-filter: blur(2px) saturate(1.35) brightness(1.18);
+  backdrop-filter: blur(2px) saturate(1.35) brightness(1.18);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
 }
 
+/* Refraction band: 3px masked ring with a stronger filter than the body —
+   the backdrop smears harder right at the edge, reading as light bending
+   through the pane's rim. */
+.glass-clear::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 3px;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-backdrop-filter: blur(10px) saturate(1.9) brightness(1.4);
+  backdrop-filter: blur(10px) saturate(1.9) brightness(1.4);
+  pointer-events: none;
+}
+
+/* Crisp 1px rim: light stroke fading downward, top corners glinting
+   brighter than the edges, plus a 1px teal chromatic fringe on the right
+   edge (echo of the reference's rainbow rim). */
+.glass-clear::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background:
+    radial-gradient(120px 60px at 0% 0%, rgba(255, 255, 255, 0.5), transparent 60%),
+    radial-gradient(120px 60px at 100% 0%, rgba(255, 255, 255, 0.42), transparent 60%),
+    linear-gradient(90deg, transparent 0%, transparent 97.5%, rgba(73, 234, 203, 0.35) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 100%);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Header stays lightly frosted — it slides OVER content, so blur is
+   correct there (and only there). */
 .glass-deep {
   background: rgba(10, 10, 12, 0.42);
   -webkit-backdrop-filter: blur(20px) saturate(1.5);

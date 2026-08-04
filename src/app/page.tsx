@@ -124,7 +124,7 @@ export default function ComposePage() {
         </p>
       )}
 
-      <div className="glass border border-white/10 rounded-xl p-5 space-y-4 animate-card-in">
+      <div className="glass-clear rounded-xl p-5 space-y-4 animate-card-in">
         <label className="block space-y-1.5">
           <span className="text-xs text-muted">To — Kaspa address or .kas name</span>
           <input

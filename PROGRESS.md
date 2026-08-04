@@ -464,6 +464,33 @@ hydration mismatch caused by a browser EXTENSION injecting a
 `__processed_*` attribute into <body> (named as a cause in React's own
 message) — not our code, absent in clean profiles/production.
 
+**Glass iteration 3 — CLEAR glass (human direction change, 2026-08-04):**
+frosted read as gray; the target is a clean pane on a dark desk — seen
+THROUGH in the middle, seen AT THE EDGES as light-bending. `.glass-clear`
+recipe: fill white/2.5 with NO card blur (the covenant-hex texture and
+glow show through clearly); a 1px gradient rim stroke (white/30 at the
+top edge and upper corners fading to white/5, drawn via masked padded
+pseudo-element so it follows the radius); inner bevel (inset top
+highlight + faint inset bottom shadow); a barely-there 112° specular
+sheen across the top third. The header alone stays frosted
+(`.glass-deep`) — it slides over content, blur is correct there only.
+Verified by in-browser screenshot + zoom: texture is legible through the
+panel; the rim reads as a lit glass edge. Copy nit noted for later:
+"decrypting reply…" on Sent shows during the REST fetch, not decryption.
+
+**Glass iteration 4 — Liquid Glass reference locked (human, 2026-08-04,
+iOS screenshot analysis):** panels BRIGHTEN the backdrop instead of
+graying it (`brightness(1.18)` + `saturate(1.35)` in a minimal 2px body
+blur — hex texture stays readable through the panel); the edge is
+refraction, not a border — a 3px masked ring pseudo-element carries its
+OWN stronger backdrop-filter (blur 10px, saturate 1.9, brightness 1.4)
+so the backdrop visibly smears at the rim, with a crisp 1px stroke on
+top (white/30 fading down), radial glints at the top corners, and a 1px
+teal chromatic fringe on the right edge; body has a vertical luminosity
+gradient + diagonal sheen. Verified by screenshot+zoom against the
+locked test ("texture readable through the card AND the rim visibly
+bends it") — passing to my eye; human judges against the reference.
+
 **F10 (gate observation, fixed in this pass) — status/timer precedence:**
 countdowns kept ticking on answered/refunded cards, and expiring timers
 overwrote terminal states with deadline-passed styling. Fix: terminal
