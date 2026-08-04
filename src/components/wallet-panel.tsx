@@ -51,8 +51,17 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="w-full glass-deep border-b border-white/10">
-      <div className="max-w-2xl mx-auto px-4 py-4 text-sm space-y-3">
+    <div className="w-full glass-deep border-b border-white/10 relative">
+      {/* Visible close affordance at the TOP — the bottom "Close" link is
+          below the fold on mobile once the share block renders. */}
+      <button
+        onClick={onClose}
+        aria-label="Close wallet panel"
+        className="absolute top-2 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-md text-muted hover:text-foreground hover:bg-white/5 text-lg"
+      >
+        ✕
+      </button>
+      <div className="max-w-2xl mx-auto px-4 py-4 pr-10 text-sm space-y-3">
         {wallet ? (
           <>
             <div className="flex flex-wrap items-center gap-2 min-w-0">

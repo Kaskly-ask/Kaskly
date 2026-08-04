@@ -118,6 +118,23 @@ clientWidth on every route (zero overflow), including with the wallet
 panel OPEN and the share preview rendered at 390px. Deployed for the
 human's real-phone confirmation.
 
+### B6 — stale wallet panel across navigation, all viewports (human,
+real-device + desktop, 2026-08-05; FIXED + verified both)
+
+The panel persisted across route changes (full-screen on mobile → app
+reads frozen). Fixes: (1) the panel is now SUBORDINATE TO THE ROUTE —
+a pathname-keyed effect closes it on any navigation (tabs, links,
+back/forward); (2) standard overlay conventions: scrim (tap outside
+closes), Escape closes, and a visible ✕ at the panel's top corner (the
+bottom "Close" falls below the fold once the share block renders);
+(3) overlay AUDIT — WalletPanel was the only floating overlay in the
+app (HiddenSection is an in-page details element that unmounts with
+its route; the connection banner is in-flow status by design) — the
+class dies with the instance. Verified with scripted flows: 390px
+iframe (panel open → Inbox tap → closed + inbox visible) and desktop
+(open → Escape ✓ → scrim ✓ → route change ✓), all assertions green on
+the production build.
+
 ### B5 follow-up — deliberate mobile header (human-approved from
 screenshots, 2026-08-05)
 

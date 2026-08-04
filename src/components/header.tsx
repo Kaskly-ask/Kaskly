@@ -4,7 +4,7 @@
 // badge) sit on a SOLID chip — never on translucency.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@/lib/wallet";
 import { useActivity } from "@/lib/activity";
 import { formatKas, shortAddress } from "@/lib/config";
@@ -59,6 +59,29 @@ export function Header() {
   const [panelOpen, setPanelOpen] = useState(false);
   const badgeFor = (href: string) =>
     href === "/inbox" ? unreadInbox : href === "/sent" ? unreadSent : 0;
+
+  // The panel is subordinate to the route (mobile UX bug 2026-08-05: a
+  // stale-open panel across navigation reads as a frozen app). Hooking
+  // the pathname covers tab taps, in-page links, AND back/forward.
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setPanelOpen(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
+
+  // Standard overlay convention: Escape closes while open.
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPanelOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [panelOpen]);
 
   return (
     <header className="sticky top-0 z-40 w-full glass-deep border-b border-white/10 mb-8">
@@ -147,7 +170,18 @@ export function Header() {
           ))}
         </nav>
       </div>
-      {panelOpen && <WalletPanel onClose={() => setPanelOpen(false)} />}
+      {panelOpen && (
+        <>
+          {/* Scrim: tap anywhere outside the panel to close (sits above
+              page content, below the sticky header+panel). */}
+          <div
+            className="fixed inset-0 z-30 bg-black/50"
+            aria-hidden
+            onClick={() => setPanelOpen(false)}
+          />
+          <WalletPanel onClose={() => setPanelOpen(false)} />
+        </>
+      )}
     </header>
   );
 }
