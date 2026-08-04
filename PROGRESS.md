@@ -128,11 +128,17 @@ human's real-phone confirmation.
    a discreet "some roadmap is maintained privately" note.
 3. Stranger pass over every .md. Redactions at HEAD: the Q1 private
    conversation is now a neutral paraphrase (no verbatim quote, no
-   attribution, no strategic framing); the LAN IP scrubbed. FLAG FOR
-   THE HUMAN: git HISTORY still contains the original quote and the
-   pre-split IDEAS content — scrubbing history requires a rewrite
-   (breaks tags/clones) or the counterparty's OK to leave it; HEAD is
-   clean either way.
+   attribution, no strategic framing); the LAN IP scrubbed.
+   **History-residue RULING (human, 2026-08-05, after reviewing the
+   exact verbatim contents and the commits containing them): ACCEPT the
+   residual — NO history rewrite.** Rationale, recorded: the quote is
+   benign (favorable, professional, no personal content), and the
+   immutable audit trail — unbroken tags, verifiable txid evidence,
+   honest process history — is worth more than scrubbing it. What
+   history retains, eyes-open: the Q1 quote + attribution (all commits
+   `2708b1a`..`0392135`, incl. all phase tags), the DROPS one-liner
+   list (same span), and the crowd-question-board idea (~a dozen
+   commits, `48a9a81`..`0392135`, no tags). HEAD carries none of it.
 4. README brought current post-deploy: kaskly.app is the live app, not
    a "target"; cold-start commands re-checked against the Render build
    (same steps).
