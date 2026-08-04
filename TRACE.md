@@ -42,21 +42,22 @@ evidence recorded in PROGRESS.md).
 
 | ID | Summary | Implementation | Tests | Status |
 |----|---------|----------------|-------|--------|
-| S1 | COMPOSE screen (address/KNS, message, amount, deadline picker 7d default, TESTNET badge, honesty line, no fee line) | src/app/page.tsx; kns.ts (KNS shape verified from Kasia source); asks-client.ts sendAsk | build+lint green; human end-to-end at gate | built |
-| S2 | INBOX screen (list, countdown, reply-to-claim; §4 escrow verification REQUIRED before display; late-claim refusal + clean deadline-passed state) | src/app/inbox/page.tsx; use-asks.ts (firehose + deriveStatusFromChain §4 gate); asks-client.ts claimAsk (DeadlinePassedError) | build+lint green; §4 predicate exercised by INT rebuild (unverified announcements dropped); human end-to-end at gate | built |
-| S3 | SENT screen (status states, countdown, explorer links, decrypted replies, rebuild-from-chain action) | src/app/sent/page.tsx; use-asks.ts; rebuild.ts | INT rebuild.test.ts (statuses reconstructed from chain); human end-to-end at gate | built |
+| S1 | COMPOSE screen (address/KNS, message, amount, deadline picker 7d default, TESTNET badge, honesty line, no fee line) | src/app/page.tsx; kns.ts (KNS shape verified from Kasia source); asks-client.ts sendAsk | build+lint green; human end-to-end PASSED (gate 2026-08-04) | verified |
+| S2 | INBOX screen (list, countdown, reply-to-claim; §4 escrow verification REQUIRED before display + visible badge; late-claim refusal + clean deadline-passed state) | src/app/inbox/page.tsx; use-asks.ts/activity.tsx (firehose + deriveStatusFromChain §4 gate); asks-client.ts claimAsk (DeadlinePassedError) | INT rebuild (§4 predicate); human end-to-end PASSED incl. late-reply refusal (gate 2026-08-04) | verified |
+| S3 | SENT screen (status states, countdown, explorer links, decrypted replies, rebuild-from-chain action) | src/app/sent/page.tsx; use-asks.ts; rebuild.ts | INT rebuild.test.ts; human end-to-end PASSED incl. observed refund (gate 2026-08-04) | verified |
 
 ### Phase 3 client infrastructure (maps to §3.2/§3.3/§8 client rules)
 
 | Item | Spec basis | Implementation | Tests | Status |
 |------|-----------|----------------|-------|--------|
-| Wallet: browser-only keys + signature ownership proof | §3.2, D4 | src/lib/wallet.tsx (signMessage/verifyMessage) | build green; human connect flow at gate | built |
-| DB as cache + rebuild-from-chain | §3.3 | src/lib/repo.ts, api/asks route, src/lib/rebuild.ts | UNIT rebuild.test.ts (classifier, malformed skipped); INT rebuild.test.ts GREEN on TN10 (answered + refunded lifecycles reconstructed, exact txids, both roles) | tested |
-| Auto-refund at deadline (normative rule 1) | §8, D9 | use-asks.ts effect → asks-client.ts maybeAutoRefund (both roles) | covenant path proven Phase 2; UI trigger human-verified at gate | built |
-| Refuse late claim construction (normative rule 2) | §8, A5, D9 | asks-client.ts claimAsk guard; inbox deadline-passed state | guard precedes any tx construction; human-verified at gate | built |
-| XSS-inert rendering + size limits | Phase 3 accept, §9 | React text nodes only (no dangerouslySetInnerHTML, grep-verified); MAX_MESSAGE_BYTES (byte-accurate, F6) at textarea+lib+codec | UNIT codec size tests; human script-injection check at gate | built |
-| Mass-scaled claim fees (F7) | §5.2 | transactions.ts quoteClaimFee (SDK calculateTransactionFee, iterated, floored); asks-client estimateReplyClaim (UI quote) | UNIT fees.test.ts (floor, scaling, self-verify, too-small rejection); INT fees.test.ts GREEN on TN10 (near-limit reply accepted, exact net; long-message lock) | tested |
-| Activity awareness (F8) | §3.2 UX, §8 rule 1 app-wide | activity.tsx provider (badges, title count, seen-state); header UnreadBadge | human check at gate | built |
+| Wallet: browser-only keys + signature ownership proof | §3.2, D4 | src/lib/wallet.tsx (signMessage/verifyMessage) | human connect flow PASSED (gate 2026-08-04) | verified |
+| DB as cache + rebuild-from-chain | §3.3 | src/lib/repo.ts, api/asks route, src/lib/rebuild.ts | UNIT rebuild.test.ts (classifier, malformed skipped); INT rebuild.test.ts GREEN on TN10 (answered + refunded lifecycles reconstructed, exact txids, both roles); human gate PASSED | verified |
+| Auto-refund at deadline (normative rule 1) | §8, D9 | activity.tsx effect → asks-client.ts maybeAutoRefund (both roles, app-wide) | covenant path proven Phase 2; refund OBSERVED live by human (gate 2026-08-04) | verified |
+| Refuse late claim construction (normative rule 2) | §8, A5, D9 | asks-client.ts claimAsk guard; inbox deadline-passed state | guard precedes any tx construction; refusal observed by human (gate 2026-08-04) | verified |
+| XSS-inert rendering + size limits | Phase 3 accept, §9 | React text nodes only (no dangerouslySetInnerHTML, grep-verified); MAX_MESSAGE_BYTES (byte-accurate, F6) at textarea+lib+codec | UNIT codec size tests; human script-injection check PASSED (gate) | verified |
+| Mass-scaled claim fees (F7) | §5.2 | transactions.ts quoteClaimFee (SDK calculateTransactionFee, iterated, floored); asks-client estimateReplyClaim (UI quote) | UNIT fees.test.ts; INT fees.test.ts GREEN on TN10 (near-limit reply accepted, exact net recomputed from consensus UTXO set — R2 dual); human gate PASSED | verified |
+| Activity awareness (F8) | §3.2 UX, §8 rule 1 app-wide | activity.tsx provider (badges, title count, seen-state); header UnreadBadge | human check PASSED (gate 2026-08-04) | verified |
+| Hide/unhide settled cards (F9) | §3.2 UX | use-hidden.ts; HiddenSection; settled-only rule in pages | human check PASSED (gate 2026-08-04) | verified |
 
 ## Chain layer (C)
 
@@ -65,7 +66,7 @@ evidence recorded in PROGRESS.md).
 | C1 | Pinned official WASM SDK; wRPC detection; installed types read | package.json (kaspa-wasm 2.0.1 file: pin), node.ts | INT (all chain ops via pinned SDK) | tested |
 | C2 | Escrow properties (lock/claim-with-reply/timeout/no third party/no fees) | covenant.ts | INT: 9 chain-rejected attacks + lifecycle; UNIT golden vector | verified |
 | C3 | Implementation honesty gate (real capabilities, cited) | PROGRESS.md ground truth + findings F1-F5, all source-cited | — | verified |
-| C4 | Explorer link for every tx | ask-card.tsx ExplorerLink (lock/claim/refund on every card); config.ts explorerTxUrl | human click-through at gate | built |
+| C4 | Explorer link for every tx | ask-card.tsx ExplorerLink (lock/claim/refund on every card); config.ts explorerTxUrl | human click-through PASSED (gate 2026-08-04) | verified |
 | C5 | README cold start | — | — | unstarted |
 
 ## Protocol spec (P)

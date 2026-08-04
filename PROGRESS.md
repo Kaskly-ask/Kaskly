@@ -2,8 +2,21 @@
 
 ## Current phase
 
-**Phase 3 — Reference client. BUILD COMPLETE; AWAITING THE HUMAN
-END-TO-END GATE TEST (dev server running at http://localhost:3000).**
+**Phase 3 COMPLETE — gate PASSED (human, 2026-08-04), tagged `phase-3`.
+Post-tag polish queue in progress (glass pass + Earned in flight; then
+dev deadline chip, countdown smoothing). Phase 4 awaits explicit human
+go (L3).**
+
+### Phase 3 gate decision (human, 2026-08-04)
+
+**Gate PASSED on all items**: full loop verified end-to-end between two
+real wallets (send → live inbox discovery with §4 badge → reply-to-claim
+→ funds + reply delivered), refund observed landing at deadline,
+late-reply structurally refused, script-injection text rendered inert,
+explorer links and rebuild-from-chain exercised. Nine findings raised
+during gate testing (F6-F9 + queued polish) — all blocking ones fixed
+and re-verified before the tag. TRACE S1-S3 + Phase 3 infrastructure
+rows flipped to verified.
 
 ### Project identity assets (from the human, 2026-08-04)
 
@@ -103,11 +116,10 @@ code, TRUST.md current, tagged `phase-2` (commit `86d5cc3`).
 - [x] Input hardening: MAX_MESSAGE_CHARS at textarea+library+codec layers;
       all message/reply text rendered via React text nodes only
       (grep-verified: no dangerouslySetInnerHTML/innerHTML anywhere)
-- [ ] Human end-to-end test on two real wallets (acceptance) — READY:
-      dev server running at http://localhost:3000 (LAN:
-      http://192.168.14.86:3000 for the second device)
-- [ ] TRACE.md S1-S3 rows flipped to verified after the human test;
-      committed + tagged `phase-3`
+- [x] Human end-to-end test on two real wallets (acceptance) — PASSED
+      2026-08-04: full loop, observed refund, late-reply refusal
+- [x] TRACE.md S1-S3 rows flipped to verified; committed + tagged
+      `phase-3`
 
 ### Phase 1 gate decision (human, 2026-08-03)
 
@@ -429,6 +441,14 @@ the lock explicitly.
    refund/late-reply human testing costs an hour per cycle today while
    the integration tests already use ~90s deadlines — the human tester
    deserves the same loop speed.
+3. **Countdown display smoothing** (queued 2026-08-04, gate observation):
+   countdowns occasionally tick UP a few seconds when the DAA clock
+   resyncs against actual block pace — correct behavior, bad optics.
+   Fix: absorb small upward corrections by slowing the tick rate rather
+   than jumping the number backward; only visibly resync on large drift.
+   (Displayed times are estimates over a DAA-denominated deadline —
+   ASKSPEC §8 states this; a UI comment now marks it at the Countdown
+   component.)
 
 ### Phase 3 gate findings (human end-to-end testing, 2026-08-04)
 
