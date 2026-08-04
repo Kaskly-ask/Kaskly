@@ -87,6 +87,8 @@ export function AskCard({
   deadline: string;
   daaScore: bigint | null;
   status: AskStatus;
+  /** Extra chip(s) in the status row (e.g. the §4 escrow-verified badge). */
+  badge?: ReactNode;
   /** Explorer links row. */
   footer?: ReactNode;
   /** Expanded content (reply box, reply text, actions). */
@@ -107,6 +109,7 @@ export function AskCard({
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <StatusChip status={status} />
+        {badge}
         <Countdown deadline={deadline} daaScore={daaScore} />
         <span
           className="text-xs text-faint font-mono"

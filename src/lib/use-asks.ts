@@ -22,8 +22,12 @@ import { useWallet } from "./wallet";
 import { REFUND_FEE_ALLOWANCE } from "./ask/protocol";
 
 export interface LiveAsk extends AskRecordDto {
-  /** §4: chain-verified announcement (inbox items are always true). */
-  verified: boolean;
+  /** §4 escrow verification, made visible to the UI:
+   *  "pending" — cached row displayed while re-verification settles;
+   *  "ok"      — announced parameters reproduce the funded P2SH;
+   *  "failed"  — chain does not back this announcement (never surfaced).
+   *  Firehose discoveries only ever enter the list as "ok". */
+  verification: "pending" | "ok" | "failed";
   replyCiphertext: string | null;
 }
 
@@ -59,7 +63,7 @@ export function useAsks(role: "sender" | "recipient") {
         status: d.status,
         claimTxid: d.claimTxid ?? record.claimTxid,
         refundTxid: d.refundTxid ?? record.refundTxid,
-        verified: d.verified,
+        verification: d.verified ? "ok" : "failed",
         replyCiphertext: d.replyCiphertext,
       };
       if (!d.verified) return live; // never cache/surface unverified as real
@@ -84,10 +88,14 @@ export function useAsks(role: "sender" | "recipient") {
         const cached = await fetchCachedAsks(address);
         const mine = role === "sender" ? cached.sent : cached.received;
         if (stop) return;
-        // Show cached rows immediately (marked with their cached status),
-        // then settle each against the chain.
+        // Show cached rows immediately as "pending" (they were §4-verified
+        // when first cached), then settle each against the chain.
         setAsks(
-          mine.map((r) => ({ ...r, verified: true, replyCiphertext: null }))
+          mine.map((r) => ({
+            ...r,
+            verification: "pending" as const,
+            replyCiphertext: null,
+          }))
         );
         setLoading(false);
         for (const r of mine) {
@@ -150,7 +158,7 @@ export function useAsks(role: "sender" | "recipient") {
           void (async () => {
             try {
               const live = await deriveOne(candidate);
-              if (live?.verified) {
+              if (live?.verification === "ok") {
                 await cacheAsk(candidate).catch(() => {});
                 upsertLocal(live);
               }

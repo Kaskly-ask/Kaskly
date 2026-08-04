@@ -63,6 +63,20 @@ function InboxItem({
       deadline={ask.deadline}
       daaScore={daaScore}
       status={ask.status}
+      badge={
+        ask.verification === "ok" ? (
+          <span
+            className="text-[10px] tracking-wide text-teal border border-teal/30 rounded px-1.5 py-0.5"
+            title="Verified on-chain: the announced sender, amount and deadline reproduce exactly the escrow address this Ask funded (ASKSPEC §4). The money is really there, under the covenant's rules."
+          >
+            ✓ escrowed
+          </span>
+        ) : (
+          <span className="text-[10px] text-faint italic">
+            verifying escrow…
+          </span>
+        )
+      }
       footer={
         <>
           <ExplorerLink txid={ask.lockTxid} label="lock" />
@@ -127,7 +141,9 @@ function InboxItem({
 export default function InboxPage() {
   const { wallet, status } = useWallet();
   const { asks, loading, error, daaScore, upsertLocal } = useAsks("recipient");
-  const visible = asks.filter((a) => a.verified);
+  // "failed" rows are never surfaced (§4); "pending" rows show with the
+  // verifying indicator until the chain settles them.
+  const visible = asks.filter((a) => a.verification !== "failed");
 
   return (
     <section className="space-y-5">
