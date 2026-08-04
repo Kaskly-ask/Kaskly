@@ -410,6 +410,19 @@ the lock explicitly.
 - Dev server left running for the human gate test: http://localhost:3000
   (LAN http://192.168.14.86:3000).
 
+### Queued post-tag work (v1.0 polish — human-approved, NOT gate-blocking)
+
+1. **"Earned" widget** (queued 2026-08-04; first in queue — the hide
+   feature ahead of it already shipped): persistent header widget near
+   the wallet chip, every tab — total net TKAS claimed by the connected
+   wallet (sum of claim outputs received minus fees). MUST be
+   chain-derived and consistent with rebuild-from-chain (derivable from
+   answered asks where the wallet is recipient; the claim tx's single
+   output IS the net). The claim success moment should visibly tick the
+   counter up. Rationale: recipient-side retention/dopamine + a
+   shareable proof-of-earnings surface. (Sender-side "refunded back"
+   total → IDEAS.md.)
+
 ### Phase 3 gate findings (human end-to-end testing, 2026-08-04)
 
 - **F6 — payload-limit UX + INCONSISTENT LIMIT (fixed).** Mashing a huge

@@ -29,6 +29,11 @@ _Anything out of scope for the ASK v2.0 brief lands here instead of in code
 
 _(add below as they come up)_
 
+- **Sender-side "refunded back" total** (parked 2026-08-04, alongside
+  the queued recipient-side "Earned" widget): running total of TKAS
+  returned to the connected wallet by refunds. Lower priority than
+  Earned (a refund is relief, not reward); if built, same rules:
+  chain-derived, rebuild-consistent.
 - **Hide live Asks with confirm (v1.1)** (2026-08-04, gate finding F9;
   the settled-only hide/unhide version SHIPPED in Phase 3). Remaining
   future scope: allowing LIVE Asks (claimable funds) to be hidden behind
