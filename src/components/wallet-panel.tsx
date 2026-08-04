@@ -52,7 +52,10 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="w-full glass-deep border-b border-white/10 relative">
+    // z-40 lifts the panel above the scrim (z-30) inside the header's
+    // stacking context — B6 regression: with z-auto the scrim covered the
+    // panel and swallowed every inside click.
+    <div className="w-full glass-deep border-b border-white/10 relative z-40">
       {/* Visible close affordance at the TOP — the bottom "Close" link is
           below the fold on mobile once the share block renders. */}
       <button

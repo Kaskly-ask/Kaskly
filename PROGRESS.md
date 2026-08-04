@@ -118,6 +118,22 @@ clientWidth on every route (zero overflow), including with the wallet
 panel OPEN and the share preview rendered at 390px. Deployed for the
 human's real-phone confirmation.
 
+### B6 regression — scrim swallowed inside-panel clicks (human, launch-
+blocking, 2026-08-05; FIXED + full matrix verified before push)
+
+Cause: scrim (z-30) and panel (z-auto) are siblings inside the sticky
+header's stacking context — the scrim stacked OVER the panel content
+and intercepted every inside click (copy, download, share, the X).
+Fix: panel lifted to z-40 within the shared context (one class). Full
+matrix verified on the prod build, per instruction, BEFORE pushing:
+(1) copy inside → stays open, and "copied!" flips on a REAL click (the
+scripted run's only miss was synthetic clicks lacking user activation
+for the clipboard — a test artifact, documented); (2) download → stays
+open (PNG saved); (3) inline contact edit inside panel → input appears,
+stays open; (4) outside/scrim click → closes; (5) Escape → closes;
+(6) X → closes; (7) navigate → closes, inbox visible. Other overlays:
+none exist (B6 audit) — the scrim pattern lives only here.
+
 ### Local contacts / wallet naming (pre-beta QoL, human-promoted from
 real usage, 2026-08-05)
 
