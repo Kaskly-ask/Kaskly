@@ -117,6 +117,7 @@ describe("V3 codec validation", () => {
       deadlineDaa: "1000000",
       askId: ASK_ID,
       refundAllowance: "296400",
+      amountSompi: "100000000",
       msgEnc: "kasia1",
       message: CIPHERTEXT,
     });
@@ -128,6 +129,29 @@ describe("V3 codec validation", () => {
       // rebuilt for the §4 escrow verification.
       expect(parsed.envelope.askId).toBe(ASK_ID);
       expect(parsed.envelope.refundAllowance).toBe("296400");
+      // Mandatory in V3: the per-Ask allowance broke V2's amount
+      // derivation, so §4 cannot check funding without it.
+      expect(parsed.envelope.amountSompi).toBe("100000000");
     }
+  });
+
+  it("rejects an announcement missing amountSompi (V3 mandatory field)", () => {
+    const withAmount = encodeAskPayloadV3({
+      v: 2,
+      sender: "kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6",
+      recipient: "kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6",
+      deadlineDaa: "1000000",
+      askId: ASK_ID,
+      refundAllowance: "296400",
+      amountSompi: "100000000",
+      msgEnc: "kasia1",
+      message: CIPHERTEXT,
+    });
+    const text = new TextDecoder().decode(fromHex(withAmount));
+    const stripped = text.replace(/,"amountSompi":"100000000"/, "");
+    expect(stripped).not.toContain("amountSompi");
+    expect(() =>
+      parseAskPayloadV3(toHex(new TextEncoder().encode(stripped)))
+    ).toThrow(/malformed v3 ask envelope/);
   });
 });

@@ -18,7 +18,9 @@ import {
   REFUND_FEE_ALLOWANCE,
   toHex,
   type AskEnvelope,
+  type ParsedAskPayload,
 } from "./protocol";
+import { parseAskPayloadV3, type ParsedV3Payload } from "./protocol-v3";
 import { deriveAskCovenant, xOnlyFromAddress } from "./covenant";
 import { encryptKasia1 } from "./crypto";
 
@@ -177,10 +179,30 @@ export async function currentDaaScore(rpc: RpcClient): Promise<bigint> {
 }
 
 /** A2 NOTIFY / discovery: the block-firehose filter, same pattern Kasia
- * clients use. Calls `onPayload` for every ASK-namespace payload seen. */
+ * clients use. Calls `onPayload` for every ASK-namespace payload seen.
+ *
+ * Reads BOTH protocol versions (2026-08-04). The firehose prefix filter
+ * already matched V3 traffic — both V3 headers begin `ciph_msg:1:ask:` —
+ * but the V2 parser met subkind `r2`/`a2` and THREW, so V3 Asks surfaced
+ * as MALFORMED rather than as discoveries. The client could therefore
+ * create V3 Asks it could not find. V3 is tried first (its parser returns
+ * null for anything that is not V3), then V2, so in-flight V2 Asks stay
+ * discoverable — which they must, since the client keeps reading V2 while
+ * creating only V3.
+ *
+ * COUPLING WORTH KNOWING: V3 discovery keys off the `r2:`/`a2:` subkinds —
+ * the same subkinds whose treatment by Kasia's own parser and by explorers
+ * is UNCONFIRMED (Q3). We rely on them here; third parties may not skip
+ * them cleanly. Do not claim otherwise until the Kasia team confirms.
+ *
+ * The callback receives the parsed payload (both versions expose `.kind`)
+ * plus an explicit version, so existing callers that only read `.kind`
+ * keep working unchanged. */
+export type ScannedAskPayload = ParsedAskPayload | ParsedV3Payload;
+
 export function startAskScanner(
   rpc: RpcClient,
-  onPayload: (parsed: ReturnType<typeof parseAskPayload>, txid: string) => void,
+  onPayload: (parsed: ScannedAskPayload | null, txid: string, version?: 1 | 2) => void,
   onMalformed?: (txid: string, error: string) => void
 ): () => Promise<void> {
   const prefixHex = toHex(new TextEncoder().encode(ASK_PREFIX));
@@ -191,8 +213,13 @@ export function startAskScanner(
       if (!payload.startsWith(prefixHex)) continue;
       const txid = tx.verboseData?.transactionId ?? "";
       try {
+        const v3 = parseAskPayloadV3(payload);
+        if (v3) {
+          onPayload(v3, txid, 2);
+          continue;
+        }
         const parsed = parseAskPayload(payload);
-        if (parsed) onPayload(parsed, txid);
+        if (parsed) onPayload(parsed, txid, 1);
       } catch (e) {
         onMalformed?.(txid, String((e as Error).message ?? e));
       }

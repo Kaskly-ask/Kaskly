@@ -198,13 +198,19 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
         if (!parsed) return;
         if (parsed.kind === "ask" && parsed.envelope.recipient === address) {
           const env = parsed.envelope;
+          // V2 announces minRefund with a FIXED allowance; V3 announces a
+          // PER-ASK refundAllowance instead (F13). Both describe the same
+          // locked amount, reached from opposite directions — so the
+          // announced total must be derived per version, never assumed.
+          const amountSompi =
+            "amountSompi" in env
+              ? env.amountSompi // V3 announces it explicitly
+              : (BigInt(env.minRefund) + REFUND_FEE_ALLOWANCE).toString();
           const candidate: AskRecordDto = {
             askRef: txid,
             senderAddress: env.sender,
             recipientAddress: env.recipient,
-            amountSompi: (
-              BigInt(env.minRefund) + REFUND_FEE_ALLOWANCE
-            ).toString(),
+            amountSompi,
             messageCiphertext: env.message,
             deadline: env.deadlineDaa,
             lockTxid: txid,

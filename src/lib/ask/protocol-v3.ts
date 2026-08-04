@@ -53,6 +53,14 @@ export interface AskEnvelopeV3 {
   /** Per-Ask refund fee allowance in sompi (F13) — replaces the fixed
    * REFUND_FEE_ALLOWANCE, which stranded small Asks. */
   refundAllowance: string;
+  /** Locked amount in sompi. MANDATORY in V3.
+   * V2 did not carry this: its envelope announced `minRefund` and the
+   * allowance was a global constant, so the amount was derivable. V3's
+   * allowance is per-Ask, which broke that derivation — without an explicit
+   * amount a client cannot tell from the announcement whether the covenant
+   * was funded with what it claims, only that the ADDRESS matches. Found
+   * while wiring A2 discovery, 2026-08-04. */
+  amountSompi: string;
   msgEnc: "kasia1";
   message: string;
 }
@@ -192,7 +200,7 @@ function validateReplyV3(x: unknown): ReplyEnvelopeV3 {
 
 function validateAskV3(x: unknown): AskEnvelopeV3 {
   if (!isRecord(x)) throw new Error("malformed v3 ask envelope");
-  const { v, sender, recipient, deadlineDaa, askId, refundAllowance, msgEnc, message } = x;
+  const { v, sender, recipient, deadlineDaa, askId, refundAllowance, amountSompi, msgEnc, message } = x;
   if (
     v !== 2 ||
     typeof sender !== "string" ||
@@ -203,6 +211,8 @@ function validateAskV3(x: unknown): AskEnvelopeV3 {
     !HEX64.test(askId) ||
     typeof refundAllowance !== "string" ||
     !DECIMAL.test(refundAllowance) ||
+    typeof amountSompi !== "string" ||
+    !DECIMAL.test(amountSompi) ||
     msgEnc !== "kasia1" ||
     typeof message !== "string" ||
     !isValidKasia1MessageHex(message)
@@ -216,6 +226,7 @@ function validateAskV3(x: unknown): AskEnvelopeV3 {
     deadlineDaa,
     askId,
     refundAllowance,
+    amountSompi,
     msgEnc,
     message,
   };

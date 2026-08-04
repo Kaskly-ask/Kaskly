@@ -96,6 +96,9 @@ export function prepareAskV3(params: PrepareAskV3Params): PreparedAskV3 {
     deadlineDaa: params.deadlineDaa.toString(),
     askId: askIdHex,
     refundAllowance: allowance.toString(),
+    // Mandatory in V3: the per-Ask allowance broke V2's amount derivation,
+    // so the amount must be announced explicitly or §4 cannot check funding.
+    amountSompi: params.amount.toString(),
     msgEnc: "kasia1",
     // Encrypted to the RECIPIENT (Q4: encrypted only).
     message: encryptKasia1(xOnlyFromAddress(params.recipientAddress), params.message),
