@@ -695,7 +695,15 @@ sink today — but the only defense is "we didn't write one", and
 `localStorage["kaskly.wallet.v1"]` is one injected line away. Mainnet
 needs a strict CSP as table stakes.
 
-#### F20 — MEDIUM — `DAA_PER_SECOND = 10n` is baked into every deadline and was measured on TN10 only
+#### F20 — MIS-FILED AS MEDIUM; SUPERSEDED BY F24 (CRITICAL)
+> **Corrected 2026-08-05.** This was filed as a calibration issue — a
+> constant measured on the wrong network. The third audit showed the real
+> defect is one layer down: the DAA **score** is taken verbatim from an
+> untrusted node and written irreversibly into the covenant's CLTV, so a
+> hostile node destroys the sender's funds outright. Severity was wrong,
+> and the mis-filing is recorded rather than quietly edited. See F24.
+
+#### F20 (original text) — MEDIUM — `DAA_PER_SECOND = 10n` is baked into every deadline and was measured on TN10 only
 `config.ts:33` → `ask/page.tsx:111`. Once written into the redeem script
 the deadline is immutable. Against a network with a different block
 rate, "7 days" silently becomes a different real duration in both
@@ -880,6 +888,306 @@ after hours. Testnet only.
 0.1 KAS non-convergence refusal; DAA probe 10; full R3 suite green against
 V3; and the F14 client classification fix, which ships with V3 or neither
 is complete.
+
+### THIRD AUDIT — below the covenant (F24-F32), 2026-08-05, vs tag `covenant-v3.1` (8b1485e)
+
+Three exploit-framed audits of the layers the first two passes ASSUMED
+correct: the kasia1 crypto, key storage/handling, and supply-chain /
+browser trust. Standard raised: **a working proof-of-concept or it is not
+a finding**. Covenant, claim/refund logic and F12-F23 were out of bounds.
+PoCs were executed against the repo's own compiled code (the crypto pass
+transpiled `src/lib/ask/*.ts` with the project's tsc and ran against
+that, not a paraphrase). Findings re-verified by the session author before
+recording (R6).
+
+---
+
+#### F24 — CRITICAL — an untrusted node's DAA score bakes a centuries-long deadline into the covenant: permanent fund destruction. LIVE IN THE DEPLOY CONFIG.
+
+**This is the same root cause as F20, which we filed as MEDIUM. That was
+wrong.** F20 treated `DAA_PER_SECOND = 10n` as a calibration issue. The
+real defect is that the DAA *score* itself is taken from an untrusted
+party and written irreversibly into a CLTV.
+
+Verified by the session author, not just reported:
+- `src/lib/ask/node.ts:178` — `currentDaaScore` returns
+  `BigInt(dag.virtualDaaScore)` **verbatim**: no bound, no sanity check,
+  no second source.
+- `DEPLOY.md:40` leaves `NEXT_PUBLIC_KASPA_WRPC_URL` **empty**, so
+  `node.ts:47-50` uses `new Resolver()` — an arbitrary community-run
+  public node picks the number.
+- `src/app/ask/page.tsx:111` — `deadlineDaa = daa + chosenSeconds * DAA_PER_SECOND`.
+- `src/lib/ask/covenant.ts:72` — the ONLY bound is
+  `>= LOCK_TIME_THRESHOLD`, and that constant is `500_000_000_000n`
+  (~1,585 years at 10 DAA/s). It exists to keep the value in the DAA
+  threshold class, not to sanity-check a deadline.
+
+PoC output:
+```
+honest  daa=400000000        deadlineDaa=406048000        guardPasses=true  lock=0.0 years
+hostile daa=499000000000     deadlineDaa=499006048000     guardPasses=true  lock=1581.1 years
+```
+
+**Self-concealing:** the countdown (`ask-card.tsx:63-64`) computes
+`deadline - daaScore` from the SAME node, so the UI reads "7 days". The
+victim sees nothing until they connect to an honest node. `connectRpc`
+(`node.ts:57-62`) validates only the node's *self-reported* `isSynced` /
+`hasUtxoIndex` — a hostile node simply answers yes.
+
+Impact: the sender's entire locked amount, unspendable for centuries,
+because the refund branch is CLTV-gated on that deadline. Destruction
+rather than theft, but total and irreversible. **Blocks all real-value
+use.**
+
+**FIX (human-directed, both ends required):**
+1. Pin a trusted node for the score that sets deadlines — do not let
+   `Resolver()` choose it.
+2. Bound the deadline client-side: reject any Ask deadline beyond a
+   sane maximum (30/90 days under discussion) and cap the acceptable
+   range, BEFORE the covenant is built.
+3. **Chain proof required with control:** an absurd node-reported score
+   must be rejected before covenant construction; a normal score must
+   still produce a working Ask.
+
+---
+
+#### F25 — HIGH — the app is framable and "Disconnect" destroys the key in one unconfirmed click
+
+`next.config.ts` sets no headers, so there is no `frame-ancestors` and
+the app can be framed. `src/components/wallet-panel.tsx:103-111` —
+"Disconnect (forgets the key in this browser)" — is a single click with
+no confirmation, reaching `wallet.tsx:135`
+`localStorage.removeItem(STORAGE_KEY)`. Two clickjacked clicks (header
+wallet button, then Disconnect) irreversibly destroy the wallet.
+
+Cross-origin framing cannot READ the key, but it can DELETE it. This is
+the concrete thing F19's missing headers enable — recorded as its own
+finding rather than as a restatement of "no CSP".
+
+**FIX:** frame-busting / CSP `frame-ancestors`, plus a confirmation step
+on Disconnect.
+
+---
+
+#### F26 — HIGH — there is no key export or backup path anywhere, so losing the key loses the funds regardless of clickjacking
+
+Verified: `wallet.privateKey` is referenced only at `ask/page.tsx:114`
+and `inbox/page.tsx:81`, both for signing. **No reveal, export, or
+backup UI exists.** A wallet created with "Create testnet wallet" has no
+user-held copy of its key. Clearing site data, an accidental Disconnect,
+or a browser reset destroys the funds permanently.
+
+Split from F25 deliberately (human): the clickjack is one trigger, but
+the data-loss hazard stands on its own — a user who never meets an
+attacker can still lose everything to a routine browser action, while
+the UI presents Disconnect as a tidy, reversible-sounding step.
+
+**FIX:** a key export/backup path, and honest wording on Disconnect.
+
+---
+
+#### F27 — HIGH — the one dependency with no integrity verification is the one that generates keys and signs; and the service worker makes a single poisoning permanent
+
+**Integrity gap.** `package-lock.json`: every registry dependency carries
+a sha512; the two `file:` deps (`kaspa-wasm`, `kaspa-wasm-web`) carry
+**none**, so `npm ci` cannot verify them. The SHA256 recorded at
+`PROGRESS.md` ground truth is of `kaspa-wasm32-sdk-v2.0.1.zip`, which is
+**gitignored and absent from the repo** — a cloner has nothing to check
+the committed files against. No hashing anywhere in the pipeline:
+`scripts/copy-wasm.mjs` copies without verification (and its
+size+mtime staleness heuristic can skip the copy entirely), and
+`src/lib/kaspa-ready.ts:22` loads `/kaspa_bg.wasm` with no SRI
+equivalent available to `instantiateStreaming`.
+
+A swapped WASM backdoors `Keypair.random()` (`wallet.tsx:114`) — every
+generated wallet becomes attacker-derivable, and the ownership proof
+STILL passes because the key is real, merely predictable. Signing,
+address derivation and script building all live in that binary.
+
+**GOOD NEWS, PROPERLY VERIFIED:** the auditor downloaded the official
+rusty-kaspa v2.0.1 zip (53,492,146 B), confirmed its SHA256 is
+`7eaffac9cd920ef2fdf540c6e10f2a2b7761170ebc62ec57dfa0f71c64567a71` —
+**exactly the recorded value** — and byte-compared all 14 committed files
+plus `public/kaspa_bg.wasm`: **every one matches upstream.** The artifact
+is clean today; what is missing is any mechanism to keep it so.
+Per-file hashes for pinning:
+```
+web/kaspa/kaspa_bg.wasm     5f90736c80721027ecea1a51509005ebb37a434857fb4882ff03b20b24b923a9
+nodejs/kaspa/kaspa_bg.wasm  9427733cb0cb1c78cc3f2cc9f77f4153426636925ced0256c5c30e4edc199eaa
+web/kaspa/kaspa.js          82202df28a83b6da08a4fa4a9184b9ad4ef0185d9d9df333544cf7c17013daca
+nodejs/kaspa/kaspa.js       1e0ad892861bf3e0a63ba8ed51366efc2b812c5a34c6895385ee2f9d026d2fc1
+```
+
+**Persistence.** `public/sw.js:7` — `VERSION = "kaskly-sw-v1"` is a
+constant, never bumped per deploy, and `/kaspa_bg.wasm` is served
+cache-first with no revalidation (lines 38-52). Poison that response once
+and it owns keygen and signing for that browser **indefinitely**: a
+corrected redeploy does not evict it (sw.js is byte-identical so the SW
+never updates, VERSION never changes so the activate purge never fires,
+the URL never changes so no fresh fetch occurs). Only manual "clear site
+data" recovers. The same mechanism means a legitimate SDK security patch
+never reaches returning users. By contrast `/_next/static/**` self-heals,
+because each deploy mints new build-ID URLs — that half is fine.
+
+**FIX:** build-time per-file hash check against pinned values, and SW
+revalidation for the wasm so a one-shot poisoning cannot persist.
+
+---
+
+#### F28 — MEDIUM — the connect-time "ownership proof" cannot fail, and the UI claims it passed
+
+`src/lib/wallet.tsx:56-71` signs `kaskly-ownership-proof:${address}` with
+the private key and verifies it against a keypair derived from **that
+same key**. The verifier is the signer.
+
+PoC (ports `openWallet` verbatim against the pinned SDK):
+```
+500 random keys: proofOk=true 500, proofOk=false 0, threw 0
+A's signature over B's message, verified against B's pubkey: false
+```
+The last line is the comparison a real proof would have to make; the code
+never makes it. `proofOk === false` is unreachable, so
+`if (!w.proofOk) throw` (`wallet.tsx:104`) is dead code. Meanwhile
+`wallet-panel.tsx:95-97` renders **"✓ key ownership verified by
+signature"**, with a `text-danger` failure branch that can never appear.
+
+Compounding: `TRACE.md:53` marks this row **verified** on evidence "human
+connect flow PASSED" — a manual flow that cannot fail. `grep proofOk
+tests/` returns nothing. Also inconsistent: the localStorage restore path
+(`wallet.tsx:86-91`) skips the `proofOk` gate entirely, inert only
+because the proof is tautological.
+
+**FIX (human-directed):** either implement a real check, or remove the
+false UI string AND the TRACE row that marks it verified.
+
+---
+
+#### F29 — HIGH — a reply carries no authorship: kasia1 ciphertexts have no context binding (no AAD)
+
+`src/lib/ask/crypto.ts:70`/`:98` — `chacha20poly1305(key, nonce)` with
+**no associated data**. Nothing binds a blob to an ask ref, an askId, a
+direction (ask vs reply), or an author. `ref` sits in plaintext JSON
+beside the opaque `message`; V3's `askId` sits in the binary header —
+both OUTSIDE the AEAD.
+
+PoC against the repo's compiled code:
+```
+EXPLOIT 1: Eve claims Ask B using Bob's reply, verbatim
+  Eve CANNOT read it: decrypt throws for Eve.  Bytes identical to Bob's: true
+EXPLOIT 2: a third party's ASK replayed as Eve's REPLY — subkind 'a' reused as 'r', accepted: true
+EXPLOIT 3: Mallory sends Bob an Ask carrying Alice's ciphertext, under sender=MALLORY
+V3 codec: Eve's claim parses, askId differs from Bob's, ciphertext identical, sender decrypts Bob's words
+```
+
+So a claimant can present, as their own reply, prose they demonstrably
+cannot read — and the sender's UI renders it as that claimant's answer.
+ASK's premise is "the reply IS the claim"; the reply carries zero
+authorship. It also upgrades the known self-asserted-`sender` phishing
+note: the phish now carries real, decryptable prose the victim
+recognises.
+
+**Related, same root (recorded here, not separately):** ciphertexts are
+malleable in three byte-distinct encodings with no key — the parity byte
+is semantically irrelevant and unauthenticated (207/208 single-bit flips
+rejected; the one accepted is byte 12), which defeats any client-side
+"seen this ciphertext" dedup. And ~0.70% of legacy 32-byte ephemerals are
+mis-parsed (measured 28/4000), an inherited upstream format flaw.
+
+**ROUTING (human-directed): DOCUMENT NOW, DO NOT PATCH UNILATERALLY.**
+The auditor read upstream Kasia (`K-Kluster/Kasia` cipher/src/lib.rs,
+staging branch) and confirmed **no divergence** — Kasia also uses no AAD.
+Adding AAD would close this and the malleability together but **breaks
+Kasia wire compatibility**, so it belongs in the SAME conversation as the
+`r2:`/`a2:` interop question (Q3/Q4), not in a silent patch. Immediate
+action is to correct ASKSPEC and TRUST.md, which imply authorship
+authenticity that the scheme does not provide.
+
+---
+
+#### F30 — HIGH — a lying node can deny a legitimate claim
+
+`asks-client.ts:358-359` — `if (daa >= BigInt(record.deadline)) throw
+new DeadlinePassedError()`. Purely client-side, node-supplied, no chain
+cross-check. A node feeding the RECIPIENT an inflated DAA makes their
+client refuse to build a claim the chain would accept; the real deadline
+then passes and the sender refunds. Value moves recipient → sender via a
+node that merely lies. (The converse — inflated DAA to the sender causing
+a premature auto-refund — is safely blocked by consensus CLTV.) Same root
+as F24; fixing the DAA trust closes both.
+
+---
+
+#### F31 — LOW — quadratic backtracking in `sanitizeKeyInput`, on every render of the import panel
+
+`wallet.tsx:35-41`, called from `wallet-panel.tsx:17` on every render.
+Measured: 20k interior quote chars 215 ms, 80k 3.4 s, 200k 21.5 s, 500k
+did not finish in 90 s. **Reachability honestly low** — only the user's
+own paste reaches it; no attacker-controlled caller exists. Cost is a
+frozen tab while a private key sits in the field.
+
+#### F32 — LOW — "Disconnect (forgets the key)" leaves the plaintext message history behind
+
+`wallet.tsx:134-138` removes only `kaskly.wallet.v1`. `kaskly.notes.v1`
+holds **the plaintext of every Ask composed and every reply written**,
+with no delete path anywhere in `src/`, alongside contacts/seen/earned.
+The button text is literally true about the key and misleading about
+everything else on a shared browser — while the footer advertises
+end-to-end encryption, which is true on the wire and not on disk.
+
+Also LOW/INFO: the private key is written into the DOM `value` **content
+attribute** of the import field via React's controlled-input path
+(verified in installed react-dom source; UNVERIFIED in a live browser),
+and cleared only on success — after a failed import it persists until
+unmount. Exact plaintext byte length is public (`len(ct) = len(pt) + 61`)
+and ASKSPEC's public-metadata list omits it.
+
+---
+
+#### WHAT HELD, under PoC attack (valuable negative results)
+
+**No key-extraction path was found.** The "React text nodes only" claim
+was independently re-verified and extended past the original sweep:
+`?to=`, KNS names, contact names, decrypted text, every `href`/`src`,
+`next/image` (unused), prototype pollution through all four localStorage
+stores, `postMessage`, iframes, `window.opener`. All clear; React 19.2.4
+additionally blocks `javascript:` URLs (verified in installed source).
+
+**The most promising extraction path held.** F15's forgery route hands an
+attacker-chosen 33-byte ephemeral to `decryptKasia1` with the victim's
+private key — a free, repeatable invalid-curve oracle if validation were
+weak. 2,000 crafted points: **0 decryptions**; off-curve and
+out-of-range rejected by @noble/curves; secp256k1 cofactor 1 leaves no
+small-subgroup residues.
+
+**Crypto primitives sound:** 20,000 encryptions gave 20,000 distinct
+nonces AND ephemerals (nonce reuse structurally unreachable); parity
+handled correctly across 500 recipients including 245 odd-Y (0 failures);
+Poly1305 verified before plaintext is returned (207/208 tamper positions
+rejected); HKDF wiring correct per installed @noble/hashes source; CSPRNG
+confirmed; key-commitment collision is real in principle but **not
+reachable** — no flow reads one blob against two keys (would become
+reachable if a "reveal your key to prove what was said" feature is added).
+
+**Key never reaches the wire:** three consumers, all terminating in local
+primitives; no fetch body, URL, history, IndexedDB, sessionStorage or SW;
+zero `console.*` in `src/`. Key material never echoed in error strings.
+SW correctly refuses `/api/*` and all cross-origin. All `target="_blank"`
+carry `rel="noopener noreferrer"`. The truncated-address `?to=` spoof
+dies at `xOnlyFromAddress` before signing.
+
+**npm audit — 3 high, all BUILD-TIME only**, none reachable in the
+browser bundle: postcss (needs attacker-controlled CSS; the only CSS is
+ours) and sharp/libvips (Next's image optimizer, verified absent from
+client chunks). Caveat: the build environment holds deploy credentials,
+the same trust boundary as F27.
+
+**Restatement, with new amplification:** the KNS redirect is **F17**, not
+new — but the auditor established that the resolved address is **never
+displayed before send**, because the confirmation chip renders only when
+the input matches an address shape and a `.kas` name never does.
+Resolution happens inside the click handler. That materially worsens F17.
+
+---
 
 ### ⚠️ TAG `covenant-v3` (35b3549) IS KNOWN-DEFECTIVE — do not treat as current
 
