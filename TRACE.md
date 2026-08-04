@@ -72,7 +72,7 @@ evidence recorded in PROGRESS.md).
 | C2 | Escrow properties (lock/claim-with-reply/timeout/no third party/no fees) | covenant.ts | INT: 9 chain-rejected attacks + lifecycle; UNIT golden vector | verified |
 | C3 | Implementation honesty gate (real capabilities, cited) | PROGRESS.md ground truth + findings F1-F5, all source-cited | — | verified |
 | C4 | Explorer link for every tx | ask-card.tsx ExplorerLink (lock/claim/refund on every card); config.ts explorerTxUrl | human click-through PASSED (gate 2026-08-04) | verified |
-| C5 | README cold start | README.md (clone → install → env → generate → migrate → dev; faucet steps; integration-test key setup; testnet-only) | logged verbatim fresh-clone run (delegated by human, 2026-08-04): first run FAILED (missing `npx prisma generate` — /api/asks crashed), README fixed, pristine re-clone RUN 3 PASSED end-to-end (boot proven: server Ready + listening socket + DB-touching API 200) incl. 26/26 unit suite; full logs committed at audit/coldstart-log.txt (+ per-run server outputs) | verified |
+| C5 | README cold start | README.md (clone → install → env → generate → migrate → dev; faucet steps; integration-test key setup; testnet-only) | logged verbatim fresh-clone run (delegated by human, 2026-08-04): first run FAILED (missing `npx prisma generate` — /api/asks crashed), README fixed, pristine re-clone RUN 3 PASSED end-to-end (boot proven: server Ready + listening socket + DB-touching API 200, 26/26 unit); RUN 4 re-proved it on a clone of the pushed tag reading the README from the clone itself (clean `git status`); logs at audit/coldstart-log.txt (+ per-run server outputs) | verified |
 
 ## Protocol spec (P)
 

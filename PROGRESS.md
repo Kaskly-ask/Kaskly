@@ -432,6 +432,14 @@ check).** Full transcript committed at `audit/coldstart-log.txt`
   end-to-end** — boot proven by the server's own Ready output, a
   listening-socket check, and the DB-touching API route returning valid
   JSON; 26/26 unit suite; spike key script OK; zero knowledge gaps.
+- RUN 4 (post-tag, closes run 3's asterisk): at run 3 the fix existed
+  only in the working copy, so the corrected *sequence* was followed
+  against a clone whose README file was still pre-fix. After the
+  phase-4 push, a fresh clone of tag `phase-4` (62a52e1) was made, the
+  cold-start block read FROM THAT CLONE'S OWN README, and executed line
+  by line: **PASSED** (Ready in 460ms, listening socket proven, / 200,
+  /api/asks 200 valid JSON, 0 server errors, 26/26 unit).
+  `git status` in the clone was empty — proof of no hand-patching.
 - Both failed and clean logs kept deliberately (human instruction): a
   caught-and-fixed gap is better audit material than a perfect first run.
 
