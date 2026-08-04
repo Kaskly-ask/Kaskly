@@ -102,19 +102,24 @@ body::after {
   /* Body: previous-iteration transparency (the backdrop must read through
      at full clarity — brightening washed it out; lift capped at 1.05).
      Legibility comes from content contrast and the inner panels, not from
-     brightening the pane. */
+     brightening the pane.
+     First layer is the specular sheen — QUIET (≤7% white, soft-edged, not
+     animated) and WORLD-SPACE: viewport-anchored via background-attachment
+     fixed, so it belongs to the light source and slides across panels as
+     they scroll beneath it. */
   background:
     linear-gradient(
-      112deg,
-      rgba(255, 255, 255, 0.055) 0%,
-      rgba(255, 255, 255, 0.015) 24%,
-      transparent 38%
+      115deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.02) 14%,
+      transparent 27%
     ),
     linear-gradient(
       180deg,
       rgba(255, 255, 255, 0.035),
       rgba(255, 255, 255, 0.02)
     );
+  background-attachment: fixed, scroll;
   -webkit-backdrop-filter: blur(1px) saturate(1.15) brightness(1.05);
   backdrop-filter: blur(1px) saturate(1.15) brightness(1.05);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
@@ -128,7 +133,7 @@ body::after {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 3px;
+  padding: 5px;
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
@@ -137,8 +142,8 @@ body::after {
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
   mask-composite: exclude;
-  -webkit-backdrop-filter: blur(10px) saturate(1.9) brightness(1.4);
-  backdrop-filter: blur(10px) saturate(1.9) brightness(1.4);
+  -webkit-backdrop-filter: blur(15px) saturate(2) brightness(1.5);
+  backdrop-filter: blur(15px) saturate(2) brightness(1.5);
   pointer-events: none;
 }
 
