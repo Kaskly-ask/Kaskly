@@ -16,8 +16,30 @@ export const SUBKIND_REPLY = "r";
  * src/config/constants.ts); the consensus-level limit remains UNVERIFIED
  * and is tracked in PROGRESS.md. */
 export const MAX_PAYLOAD_BYTES = 16384;
-/** Max message length in UTF-16 code units, client-enforced. */
-export const MAX_MESSAGE_CHARS = 10000;
+
+/** Plaintext message ceiling in UTF-8 BYTES, client-enforced — DERIVED
+ * from MAX_PAYLOAD_BYTES: hex encoding doubles the ciphertext (which is
+ * plaintext bytes + 61 of kasia1 framing), and the worst-case v1 envelope
+ * adds ≈410 bytes of structure (ask subkind, two testnet addresses,
+ * 12-digit DAA score, 20-digit sompi amount, JSON keys, namespace prefix).
+ * 2×P + 410 ≤ 16,384 ⇒ P ≤ 7,987; 7,900 leaves margin. (The former
+ * 10,000-UTF-16-char limit was inconsistent with the payload ceiling —
+ * Phase 3 gate finding, 2026-08-04.) */
+export const MAX_MESSAGE_BYTES = 7900;
+
+/** UTF-8 byte length of a candidate message (what the limit measures —
+ * multibyte characters count more than one). */
+export function messageByteLength(text: string): number {
+  return te.encode(text).length;
+}
+
+/** Shared, human-readable size rejection (UX rule from the Phase 3 gate:
+ * never surface the raw payload-bytes error for ordinary typing). */
+export function messageTooLongError(kind: "message" | "reply"): Error {
+  return new Error(
+    `${kind === "reply" ? "Reply" : "Message"} too long — max ~${MAX_MESSAGE_BYTES.toLocaleString("en-US")} characters (less with emoji or accented text)`
+  );
+}
 
 /** Refund fee allowance in sompi: the covenant requires the refund to pay
  * at least (amount - this) back to the sender. */

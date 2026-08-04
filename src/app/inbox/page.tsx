@@ -4,16 +4,43 @@
 // IS CLAIMING THE MONEY (A3). Only §4-verified announcements appear here.
 // Normative rule 2 (§8): once the deadline passes, this screen refuses to
 // construct a claim and shows the clean "deadline passed" state instead.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@/lib/wallet";
 import { useAsks, type LiveAsk } from "@/lib/use-asks";
-import { claimAsk, DeadlinePassedError } from "@/lib/asks-client";
+import {
+  claimAsk,
+  estimateReplyClaim,
+  DeadlinePassedError,
+} from "@/lib/asks-client";
 import { useChain } from "@/lib/chain";
 import { useDecrypted } from "@/lib/use-decrypted";
 import { getNote, setNote } from "@/lib/local-notes";
 import { formatKas } from "@/lib/config";
 import { AskCard, ExplorerLink } from "@/components/ask-card";
-import { MAX_MESSAGE_CHARS } from "@/lib/ask/protocol";
+import { MAX_MESSAGE_BYTES, messageByteLength } from "@/lib/ask/protocol";
+
+/** Debounced mass-based fee/net quote for the current reply draft (F7). */
+function useClaimQuote(ask: LiveAsk, reply: string, enabled: boolean) {
+  const [quote, setQuote] = useState<{
+    key: string;
+    fee: bigint;
+    net: bigint;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!enabled || !reply.trim()) return;
+    const id = setTimeout(() => {
+      estimateReplyClaim(ask, reply)
+        .then(({ fee, net }) => setQuote({ key: reply, fee, net }))
+        .catch(() => {
+          /* keep last quote; button falls back to gross amount */
+        });
+    }, 350);
+    return () => clearTimeout(id);
+  }, [ask, reply, enabled]);
+
+  return quote?.key === reply ? quote : null;
+}
 
 function InboxItem({
   ask,
@@ -32,6 +59,9 @@ function InboxItem({
   const [error, setError] = useState<string | null>(null);
   const pastDeadline = daaScore !== null && daaScore >= BigInt(ask.deadline);
   const myReply = getNote(ask.askRef, "reply");
+  const replyBytes = messageByteLength(reply);
+  const overLimit = replyBytes > MAX_MESSAGE_BYTES;
+  const quote = useClaimQuote(ask, reply, ask.status === "open" && !overLimit);
 
   const sendReply = async () => {
     if (!wallet) return;
@@ -39,7 +69,7 @@ function InboxItem({
     setError(null);
     try {
       const rpc = await getRpc();
-      const claimTxid = await claimAsk(rpc, ask, wallet.privateKey, reply);
+      const { claimTxid } = await claimAsk(rpc, ask, wallet.privateKey, reply);
       setNote(ask.askRef, "reply", reply);
       onChanged({ ...ask, status: "answered", claimTxid });
       setReply("");
@@ -111,23 +141,43 @@ function InboxItem({
         <div className="space-y-2">
           <textarea
             value={reply}
-            onChange={(e) => setReply(e.target.value.slice(0, MAX_MESSAGE_CHARS))}
+            onChange={(e) => setReply(e.target.value)}
             rows={3}
             placeholder="Type your reply…"
-            className="w-full bg-card-raised border border-border rounded-md px-3 py-2 text-[15px] leading-relaxed focus:border-teal/50 focus:outline-none resize-y"
+            className={`w-full bg-card-raised border rounded-md px-3 py-2 text-[15px] leading-relaxed focus:outline-none resize-y ${
+              overLimit
+                ? "border-danger/60 focus:border-danger"
+                : "border-border focus:border-teal/50"
+            }`}
           />
+          <div className="flex items-baseline justify-between gap-3">
+            <span
+              className={`text-xs amount ${overLimit ? "text-danger" : "text-faint"}`}
+            >
+              {replyBytes.toLocaleString()} / {MAX_MESSAGE_BYTES.toLocaleString()}
+            </span>
+            {overLimit && (
+              <span className="text-xs text-danger">
+                Reply too long — max ~{MAX_MESSAGE_BYTES.toLocaleString()}{" "}
+                characters (less with emoji or accented text)
+              </span>
+            )}
+          </div>
           {error && <p className="text-danger text-sm">{error}</p>}
           <div className="flex items-center gap-3">
             <button
-              disabled={busy || !reply.trim()}
+              disabled={busy || !reply.trim() || overLimit}
               onClick={sendReply}
               className="px-4 py-2 rounded-md bg-teal text-background font-semibold text-sm disabled:opacity-40"
             >
               {busy
                 ? "Claiming…"
-                : `Reply & claim ${formatKas(BigInt(ask.amountSompi))} TKAS`}
+                : `Reply & claim ${quote ? `~${formatKas(quote.net)}` : formatKas(BigInt(ask.amountSompi))} TKAS`}
             </button>
             <span className="text-xs text-faint">
+              {quote
+                ? `Network fee ~${formatKas(quote.fee)} TKAS comes out of the claim. `
+                : ""}
               Your reply is encrypted — only the sender can read it. Sending
               it claims the money in the same transaction.
             </span>

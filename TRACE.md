@@ -54,7 +54,9 @@ evidence recorded in PROGRESS.md).
 | DB as cache + rebuild-from-chain | §3.3 | src/lib/repo.ts, api/asks route, src/lib/rebuild.ts | UNIT rebuild.test.ts (classifier, malformed skipped); INT rebuild.test.ts GREEN on TN10 (answered + refunded lifecycles reconstructed, exact txids, both roles) | tested |
 | Auto-refund at deadline (normative rule 1) | §8, D9 | use-asks.ts effect → asks-client.ts maybeAutoRefund (both roles) | covenant path proven Phase 2; UI trigger human-verified at gate | built |
 | Refuse late claim construction (normative rule 2) | §8, A5, D9 | asks-client.ts claimAsk guard; inbox deadline-passed state | guard precedes any tx construction; human-verified at gate | built |
-| XSS-inert rendering + size limits | Phase 3 accept, §9 | React text nodes only (no dangerouslySetInnerHTML, grep-verified); MAX_MESSAGE_CHARS at textarea+lib+codec | UNIT codec size tests; human script-injection check at gate | built |
+| XSS-inert rendering + size limits | Phase 3 accept, §9 | React text nodes only (no dangerouslySetInnerHTML, grep-verified); MAX_MESSAGE_BYTES (byte-accurate, F6) at textarea+lib+codec | UNIT codec size tests; human script-injection check at gate | built |
+| Mass-scaled claim fees (F7) | §5.2 | transactions.ts quoteClaimFee (SDK calculateTransactionFee, iterated, floored); asks-client estimateReplyClaim (UI quote) | UNIT fees.test.ts (floor, scaling, self-verify, too-small rejection); INT fees.test.ts GREEN on TN10 (near-limit reply accepted, exact net; long-message lock) | tested |
+| Activity awareness (F8) | §3.2 UX, §8 rule 1 app-wide | activity.tsx provider (badges, title count, seen-state); header UnreadBadge | human check at gate | built |
 
 ## Chain layer (C)
 

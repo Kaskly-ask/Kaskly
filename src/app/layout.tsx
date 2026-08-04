@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/lib/wallet";
 import { ChainProvider } from "@/lib/chain";
+import { ActivityProvider } from "@/lib/activity";
 import { Header } from "@/components/header";
 
 const geistSans = Geist({
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <WalletProvider>
           <ChainProvider>
+            <ActivityProvider>
             <Header />
             <main className="w-full max-w-2xl mx-auto flex-1 px-4 pb-16">
               {children}
@@ -44,6 +46,7 @@ export default function RootLayout({
               end-to-end encrypted; addresses, amounts and deadlines are
               public on-chain.
             </footer>
+            </ActivityProvider>
           </ChainProvider>
         </WalletProvider>
       </body>

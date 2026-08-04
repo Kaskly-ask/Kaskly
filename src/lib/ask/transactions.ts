@@ -4,13 +4,16 @@ import {
   ScriptBuilder,
   createTransaction,
   createInputSignature,
+  calculateTransactionFee,
   PrivateKey,
   Transaction,
   type IUtxoEntry,
 } from "kaspa-wasm";
 import {
   encodeReplyPayload,
-  MAX_MESSAGE_CHARS,
+  MAX_MESSAGE_BYTES,
+  messageByteLength,
+  messageTooLongError,
   REFUND_FEE_ALLOWANCE,
 } from "./protocol";
 import { xOnlyFromAddress } from "./covenant";
@@ -52,7 +55,71 @@ export function buildRefundSignatureScript(redeemScriptHex: string): string {
     .toString();
 }
 
+/** Conventional claim-fee floor for short replies (matches the refund
+ * allowance so all Phase 2 evidence stays byte-identical). */
+export const CLAIM_FEE_FLOOR = REFUND_FEE_ALLOWANCE;
+
+/** Placeholder signature fragment (push-prefixed 64-byte schnorr sig +
+ * sighash byte) — same byte length as a real one, for mass quoting only. */
+const DUMMY_SIG_FRAGMENT = "41" + "00".repeat(65);
+
+export interface ClaimFeeQuote {
+  /** Total network fee in sompi (mass-proportional minimum, floored). */
+  fee: bigint;
+  /** What the recipient nets: locked amount − fee. */
+  net: bigint;
+}
+
+/** Compute the claim fee from ACTUAL transaction mass (Phase 3 gate
+ * finding F7: the network minimum is proportional to byte size — a fixed
+ * fee under-pays for long replies and the node rejects the broadcast).
+ * Iterates because storage mass depends on output values; converges in
+ * one or two rounds. Throws a human-readable error when the fee would
+ * swallow the locked amount. */
+export function quoteClaimFee(args: {
+  networkId: string;
+  covenantUtxo: IUtxoEntry;
+  redeemScriptHex: string;
+  recipientAddress: string;
+  payloadHex: string;
+}): ClaimFeeQuote {
+  const total = BigInt(args.covenantUtxo.amount);
+  let fee = CLAIM_FEE_FLOOR;
+  for (let i = 0; i < 5; i++) {
+    if (fee >= total) {
+      throw new Error(
+        `Reply too long for this Ask's amount — the network fee for a reply this size would exceed the locked funds. Shorten the reply.`
+      );
+    }
+    const tx = createTransaction(
+      [args.covenantUtxo],
+      [{ address: args.recipientAddress, amount: total - fee }],
+      0n,
+      args.payloadHex,
+      1
+    );
+    tx.inputs[0].signatureScript = buildClaimSignatureScript(
+      args.redeemScriptHex,
+      DUMMY_SIG_FRAGMENT
+    );
+    const min = calculateTransactionFee(args.networkId, tx, 1);
+    if (min === undefined) {
+      // The SDK yields undefined when no standard fee exists for this
+      // shape — e.g. a huge payload against a tiny output (storage mass).
+      throw new Error(
+        `Reply too long for this Ask's amount — the network fee for a reply this size would exceed the locked funds. Shorten the reply.`
+      );
+    }
+    const required = min > CLAIM_FEE_FLOOR ? min : CLAIM_FEE_FLOOR;
+    if (required <= fee) return { fee, net: total - fee };
+    fee = required;
+  }
+  throw new Error("fee quote did not converge");
+}
+
 export interface ClaimParams {
+  /** Network id, e.g. "testnet-10" — needed for mass/fee calculation. */
+  networkId: string;
   /** The covenant UTXO (from getUtxosByAddresses on the P2SH address). */
   covenantUtxo: IUtxoEntry;
   redeemScriptHex: string;
@@ -65,18 +132,16 @@ export interface ClaimParams {
   replyText: string;
   /** Sender's address — the reply's encryption target. */
   senderAddress: string;
-  /** Fee left to miners, sompi. Default = REFUND_FEE_ALLOWANCE. */
+  /** Explicit fee override in sompi; default = quoteClaimFee (mass-based,
+   * floored at CLAIM_FEE_FLOOR). */
   fee?: bigint;
 }
 
 /** Build the atomic claim-by-reply transaction (A3): spends the covenant
  * to the recipient AND carries the reply payload. All-or-nothing. */
 export function buildClaimTransaction(params: ClaimParams): Transaction {
-  const fee = params.fee ?? REFUND_FEE_ALLOWANCE;
-  const amount = BigInt(params.covenantUtxo.amount) - fee;
-  if (amount <= 0n) throw new Error("fee exceeds locked amount");
-  if (params.replyText.length > MAX_MESSAGE_CHARS) {
-    throw new Error("reply too long");
+  if (messageByteLength(params.replyText) > MAX_MESSAGE_BYTES) {
+    throw messageTooLongError("reply");
   }
   const payloadHex = encodeReplyPayload({
     v: 1,
@@ -84,6 +149,17 @@ export function buildClaimTransaction(params: ClaimParams): Transaction {
     msgEnc: "kasia1",
     message: encryptKasia1(xOnlyFromAddress(params.senderAddress), params.replyText),
   });
+  const fee =
+    params.fee ??
+    quoteClaimFee({
+      networkId: params.networkId,
+      covenantUtxo: params.covenantUtxo,
+      redeemScriptHex: params.redeemScriptHex,
+      recipientAddress: params.recipientAddress,
+      payloadHex,
+    }).fee;
+  const amount = BigInt(params.covenantUtxo.amount) - fee;
+  if (amount <= 0n) throw new Error("fee exceeds locked amount");
   const tx = createTransaction(
     [params.covenantUtxo],
     [{ address: params.recipientAddress, amount }],
@@ -114,7 +190,9 @@ export interface RefundParams {
 }
 
 /** Build the sig-less anyone-can-trigger refund transaction (A4). Valid
- * only once virtual DAA >= deadline (consensus finality + covenant CLTV). */
+ * only once virtual DAA >= deadline (consensus finality + covenant CLTV).
+ * The FIXED fee allowance is safe here: a refund never carries a payload,
+ * so its mass is small and constant regardless of message/reply sizes. */
 export function buildRefundTransaction(params: RefundParams): Transaction {
   const tx = createTransaction(
     [params.covenantUtxo],

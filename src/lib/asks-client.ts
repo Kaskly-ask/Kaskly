@@ -241,14 +241,53 @@ export async function sendAsk(
   return record;
 }
 
+/** Estimate the claim fee/net for a reply BEFORE claiming — used by the
+ * reply box UI. Builds a size-identical synthetic transaction (fabricated
+ * outpoint, placeholder ciphertext of the exact encrypted length) and runs
+ * the same mass-based quote the real claim uses. No network access. */
+export async function estimateReplyClaim(
+  record: AskRecordDto,
+  replyText: string
+): Promise<{ fee: bigint; net: bigint }> {
+  const { quoteClaimFee, encodeReplyPayload } = await import("./ask");
+  const { payToAddressScript } = await import("kaspa-wasm");
+  const cov = await covenantFor(record);
+  const plaintextBytes = new TextEncoder().encode(replyText).length;
+  // kasia1 blob = nonce(12) + ephemeral(33) + ciphertext(P) + tag(16).
+  const payloadHex = encodeReplyPayload({
+    v: 1,
+    ref: "0".repeat(64),
+    msgEnc: "kasia1",
+    message: "00".repeat(plaintextBytes + 61),
+  });
+  const spk = payToAddressScript(cov.p2shAddress).toJSON() as unknown as {
+    version: number;
+    script: string;
+  };
+  return quoteClaimFee({
+    networkId: NETWORK_ID,
+    covenantUtxo: {
+      outpoint: { transactionId: "0".repeat(64), index: 0 },
+      amount: BigInt(record.amountSompi),
+      scriptPublicKey: { version: spk.version, script: spk.script },
+      blockDaaScore: 0n,
+      isCoinbase: false,
+    },
+    redeemScriptHex: cov.redeemScriptHex,
+    recipientAddress: record.recipientAddress,
+    payloadHex,
+  });
+}
+
 /** A3 CLAIM-BY-REPLY. Enforces normative rule 2 (refuse late construction)
- * BEFORE building anything. Returns the claim txid. */
+ * BEFORE building anything. Fee scales with transaction mass (F7).
+ * Returns the claim txid and the amount actually netted. */
 export async function claimAsk(
   rpc: RpcClient,
   record: AskRecordDto,
   recipientPrivateKeyHex: string,
   replyText: string
-): Promise<string> {
+): Promise<{ claimTxid: string; net: bigint }> {
   const { currentDaaScore, getCovenantUtxo, buildClaimTransaction } =
     await import("./ask");
   const daa = await currentDaaScore(rpc);
@@ -259,6 +298,7 @@ export async function claimAsk(
     throw new Error("this Ask is no longer claimable (already claimed or refunded)");
   }
   const tx = buildClaimTransaction({
+    networkId: NETWORK_ID,
     covenantUtxo: utxo,
     redeemScriptHex: cov.redeemScriptHex,
     recipientAddress: record.recipientAddress,
@@ -267,9 +307,23 @@ export async function claimAsk(
     replyText,
     senderAddress: record.senderAddress,
   });
-  const { transactionId } = await rpc.submitTransaction({ transaction: tx });
+  const net = BigInt(tx.outputs[0].value);
+  let transactionId: string;
+  try {
+    ({ transactionId } = await rpc.submitTransaction({ transaction: tx }));
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e);
+    // Backstop for any residual fee-floor rejection (should be prevented
+    // by quoteClaimFee): translate the node's raw message (F7).
+    if (/under the required amount|transient mass/i.test(msg)) {
+      throw new Error(
+        "The network requires a larger fee for a reply this size — try shortening your reply."
+      );
+    }
+    throw e;
+  }
   await cacheAsk({ ...record, status: "answered", claimTxid: transactionId });
-  return transactionId;
+  return { claimTxid: transactionId, net };
 }
 
 /** Normative rule 1: broadcast the sig-less refund for any Ask past its

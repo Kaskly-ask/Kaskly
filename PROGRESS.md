@@ -410,6 +410,46 @@ the lock explicitly.
 - Dev server left running for the human gate test: http://localhost:3000
   (LAN http://192.168.14.86:3000).
 
+### Phase 3 gate findings (human end-to-end testing, 2026-08-04)
+
+- **F6 — payload-limit UX + INCONSISTENT LIMIT (fixed).** Mashing a huge
+  reply surfaced the raw "payload exceeds 16384 bytes" error. Deeper bug
+  found while fixing: the old `MAX_MESSAGE_CHARS = 10,000` (UTF-16) was
+  inconsistent with `MAX_PAYLOAD_BYTES = 16,384` — hex encoding doubles
+  ciphertext, so 10,000 ASCII chars → ~20.2 KB payload; compose had the
+  same latent failure. Fix: `MAX_MESSAGE_BYTES = 7,900` (UTF-8 bytes,
+  derived: 2·P + ~410 envelope overhead ≤ 16,384 ⇒ P ≤ 7,987), enforced
+  in lib + both screens with live byte counters, over-limit button
+  disable, and friendly copy. ASKSPEC §1 corrected (spec/code together,
+  P6).
+- **F7 — claim fee must scale with transaction mass (fixed, re-proven on
+  TN10).** A near-limit reply passed the client size check but the CHAIN
+  rejected the broadcast: fixed 500,000-sompi fee vs required 3,080,600
+  for "normalized transient mass 30806" (≡ exactly 100 sompi/gram; failing
+  txid `1ef4c5fd57ed727dfa8ffa9afad37ed93d11a7894fb0e650c2beb3d910bb8a4b`).
+  Fix: `quoteClaimFee` computes the fee from the ACTUAL serialized tx via
+  the SDK's `calculateTransactionFee` (verified kaspa.d.ts:201), iterating
+  because storage mass depends on output values; floored at the old
+  500,000 so short replies (and all Phase 2 evidence) are byte-identical.
+  `calculateTransactionFee → undefined` (no standard fee exists, e.g. huge
+  reply on tiny Ask) maps to a friendly "reply too long for this Ask's
+  amount" error. UI shows a debounced fee/net quote ("Reply & claim ~X"),
+  and a backstop translates any residual node fee rejection. ASKSPEC §5.2
+  updated (claims MUST fund mass-proportional minimum; refunds are safe
+  with the fixed allowance — no payload, constant mass). Re-test GREEN on
+  TN10 (tests/integration/fees.test.ts, 3/3): near-limit reply accepted
+  with scaled fee, recipient credited exactly amount−fee; long-MESSAGE
+  lock also verified (the SDK Generator funds payload mass correctly).
+- **F8 — no awareness of new activity (small version shipped).** Refactor:
+  the live core (discovery, derivation, auto-refund) moved from the
+  per-page hook into an app-wide ActivityProvider, so the §8 auto-refund
+  rule now runs whichever screen is open. Shipped: unread badge on the
+  Inbox tab (new Asks), on the Sent tab (replies/refunds landed), and a
+  document-title count for background tabs; "seen" state in localStorage,
+  consumed only while the page is visible. Push notifications (v1.1),
+  closed-app watcher tension (non-custodial; KaChat integration argument),
+  and the unified Activity feed idea are parked in IDEAS.md.
+
 ### Process note (2026-08-04, R5 violation — recorded per L4/R4 honesty)
 
 While shipping the visible §4 badge, a chained shell command committed and

@@ -234,6 +234,7 @@ describe("ASK lifecycle on testnet (A1-A5) + R3 attacks", () => {
 
     // --- A3 CLAIM-BY-REPLY (legitimate; reply encrypted to the SENDER)
     const claimTx = buildClaimTransaction({
+      networkId: NETWORK_ID,
       covenantUtxo: utxo,
       redeemScriptHex: created.redeemScriptHex,
       recipientAddress,

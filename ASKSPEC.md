@@ -38,7 +38,7 @@ Protocol constants (v1):
 | `SUBKIND_ASK` | `a` | Ask announcement payloads. |
 | `SUBKIND_REPLY` | `r` | Reply (claim) payloads. |
 | `MAX_PAYLOAD_BYTES` | 16,384 | Whole-tx-payload ceiling, conservative under Kasia's client heuristic (17.7 KiB). The consensus payload bound is not separately verified; clients MUST enforce this limit themselves. |
-| `MAX_MESSAGE_CHARS` | 10,000 | Plaintext message ceiling before encryption, client-enforced. |
+| `MAX_MESSAGE_BYTES` | 7,900 | Plaintext ceiling in **UTF-8 bytes**, client-enforced. Derived from `MAX_PAYLOAD_BYTES`: hex encoding doubles the ciphertext (plaintext + 61 bytes of kasia1 framing) and the worst-case v1 envelope adds ≈410 bytes of structure, so 2·P + 410 ≤ 16,384 ⇒ P ≤ 7,987; 7,900 leaves margin. (v0.1 drafts said 10,000 UTF-16 chars — inconsistent with the payload ceiling; corrected 2026-08-04.) |
 | `REFUND_FEE_ALLOWANCE` | 500,000 sompi | See §5.2/§6. |
 | `LOCK_TIME_THRESHOLD` | 500,000,000,000 | Lock times below this are DAA scores (rusty-kaspa `consensus/core/src/constants.rs`). |
 
@@ -204,6 +204,23 @@ Network fee comes out of the locked amount (recipient receives
 `amount − fee`). **The protocol has no fees of its own — no fee outputs,
 no fee addresses, ever.** Any transaction claiming to be ASK that routes
 value anywhere except R (claim) or S (refund) is not ASK.
+
+**The network minimum fee scales with transaction mass**, and for large
+reply payloads mass is dominated by byte size (transient mass; observed
+on testnet-10 / rusty-kaspa 2.0.1: floor of 100 sompi per gram — a
+near-limit reply weighs ~31,000 grams, requiring a ~3.1M-sompi fee,
+demonstrated by live rejection of an underfunded claim, 2026-08-04).
+Clients MUST therefore fund claims from the actual serialized
+transaction's mass, not a fixed constant (the reference implementation
+computes it with the SDK's `calculateTransactionFee` and floors at
+`REFUND_FEE_ALLOWANCE` for short replies). Because the fee comes out of
+the locked amount, clients SHOULD display the net amount for long
+replies, and MUST reject replies whose minimum fee would meet or exceed
+the locked amount.
+
+The refund path is unaffected: refund transactions carry no payload, so
+their mass is small and constant — the fixed `REFUND_FEE_ALLOWANCE`
+pinned by the covenant is always sufficient.
 
 ## 6. Refund transaction (lifecycle REFUND)
 

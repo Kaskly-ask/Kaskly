@@ -29,6 +29,24 @@ _Anything out of scope for the ASK v2.0 brief lands here instead of in code
 
 _(add below as they come up)_
 
+- **Unified Activity feed (v1.1)** (parked 2026-08-04, gate design note):
+  replies currently surface on Sent, which buries the product's payoff
+  moment (near-term mitigation: the Sent unread badge). Evolution: one
+  reverse-chronological Activity feed — Asks received / replies received /
+  refunds landed — deep-linking to the cards; Inbox stays strictly "needs
+  your action", Activity becomes "what happened".
+- **Browser push notifications (v1.1)** (parked 2026-08-04, from Phase 3
+  gate finding F8): Notification API + service worker so an open-but-
+  backgrounded Kaskly can alert on new Asks/replies/refunds. Phase 3
+  shipped the small version (nav unread badges + document-title count).
+- **Closed-app notifications** (parked 2026-08-04): true offline alerts
+  need a WATCHER SERVICE that knows which address to watch — a real
+  tension with the non-custodial/no-server-knowledge posture (D4/D8).
+  If ever built: strictly opt-in, watch-only (address, never keys), and
+  documented in TRUST.md. Better framing: this is a NATURAL KACHAT/KASIA
+  INTEGRATION ARGUMENT — a resident messenger app already watches the
+  chain for its user and gets ASK notifications for free. Belongs in the
+  PITCH.md adoption story.
 - **Verified-sender identity via KNS in the envelope spec** (parked
   2026-08-04): the project now holds kaskly.kas (KNS inscription #96310),
   and an ask envelope COULD carry a claimed KNS name that clients verify

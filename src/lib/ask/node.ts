@@ -10,7 +10,9 @@ import {
 } from "kaspa-wasm";
 import {
   ASK_PREFIX,
-  MAX_MESSAGE_CHARS,
+  MAX_MESSAGE_BYTES,
+  messageByteLength,
+  messageTooLongError,
   encodeAskPayload,
   parseAskPayload,
   REFUND_FEE_ALLOWANCE,
@@ -108,8 +110,8 @@ export async function createAsk(
   if (params.amount <= REFUND_FEE_ALLOWANCE) {
     throw new Error("amount must exceed the refund fee allowance");
   }
-  if (params.message.length > MAX_MESSAGE_CHARS) {
-    throw new Error("message too long");
+  if (messageByteLength(params.message) > MAX_MESSAGE_BYTES) {
+    throw messageTooLongError("message");
   }
   const minRefund = params.amount - REFUND_FEE_ALLOWANCE;
   const recipientXOnlyHex = xOnlyFromAddress(params.recipientAddress);

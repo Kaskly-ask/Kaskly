@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useWallet } from "@/lib/wallet";
+import { useActivity } from "@/lib/activity";
 import { shortAddress } from "@/lib/config";
 import { WalletPanel } from "./wallet-panel";
 
@@ -12,10 +13,22 @@ const NAV = [
   { href: "/sent", label: "Sent" },
 ] as const;
 
+function UnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="ml-1.5 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-teal text-background text-[10px] font-bold align-middle">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 export function Header() {
   const pathname = usePathname();
   const { wallet, status } = useWallet();
+  const { unreadInbox, unreadSent } = useActivity();
   const [panelOpen, setPanelOpen] = useState(false);
+  const badgeFor = (href: string) =>
+    href === "/inbox" ? unreadInbox : href === "/sent" ? unreadSent : 0;
 
   return (
     <header className="w-full border-b border-border mb-8">
@@ -42,6 +55,7 @@ export function Header() {
               }`}
             >
               {label}
+              <UnreadBadge count={badgeFor(href)} />
             </Link>
           ))}
         </nav>

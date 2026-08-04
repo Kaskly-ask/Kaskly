@@ -11,7 +11,7 @@ import { isKnsName, resolveKns } from "@/lib/kns";
 import { setNote } from "@/lib/local-notes";
 import { DAA_PER_SECOND, parseKas } from "@/lib/config";
 import { ExplorerLink } from "@/components/ask-card";
-import { MAX_MESSAGE_CHARS } from "@/lib/ask/protocol";
+import { MAX_MESSAGE_BYTES, messageByteLength } from "@/lib/ask/protocol";
 
 const DEADLINE_CHOICES = [
   { label: "1 hour", seconds: 3600n },
@@ -98,11 +98,14 @@ export default function ComposePage() {
     );
   }
 
+  const messageBytes = messageByteLength(message);
+  const messageOver = messageBytes > MAX_MESSAGE_BYTES;
   const disabled =
     phase === "sending" ||
     !wallet ||
     !recipient.trim() ||
     !message.trim() ||
+    messageOver ||
     !amount.trim();
 
   return (
@@ -135,18 +138,28 @@ export default function ComposePage() {
         <label className="block space-y-1.5">
           <span className="text-xs text-muted">
             Your message{" "}
-            <span className="text-faint">
-              ({message.length.toLocaleString()}/{MAX_MESSAGE_CHARS.toLocaleString()},
+            <span className={messageOver ? "text-danger" : "text-faint"}>
+              ({messageBytes.toLocaleString()}/{MAX_MESSAGE_BYTES.toLocaleString()},
               encrypted — only the recipient can read it)
             </span>
           </span>
           <textarea
             value={message}
-            onChange={(e) => setMessage(e.target.value.slice(0, MAX_MESSAGE_CHARS))}
+            onChange={(e) => setMessage(e.target.value)}
             rows={5}
             placeholder="What do you want to ask?"
-            className="w-full bg-card-raised border border-border rounded-md px-3 py-2 text-[15px] leading-relaxed focus:border-teal/50 focus:outline-none resize-y"
+            className={`w-full bg-card-raised border rounded-md px-3 py-2 text-[15px] leading-relaxed focus:outline-none resize-y ${
+              messageOver
+                ? "border-danger/60 focus:border-danger"
+                : "border-border focus:border-teal/50"
+            }`}
           />
+          {messageOver && (
+            <span className="text-xs text-danger block">
+              Message too long — max ~{MAX_MESSAGE_BYTES.toLocaleString()}{" "}
+              characters (less with emoji or accented text)
+            </span>
+          )}
         </label>
 
         <div className="flex flex-wrap gap-4">
