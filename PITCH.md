@@ -81,8 +81,9 @@ it in minutes.
 
 ## See it live (2–3 minute demo)
 
-Reference client: **kaskly.app** (production deploy pending; runs today
-via `npm run dev` — see [README](./README.md) cold start).
+Reference client: **[kaskly.app](https://kaskly.app)** — live on
+testnet-10 (public beta), installable as a PWA; or run it yourself via
+the [README](./README.md) cold start.
 
 1. Two browsers, two wallets (one faucet-funded). Recipient's Inbox tab open.
 2. **Compose** an Ask to the recipient (or a `.kas` name): message,

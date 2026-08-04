@@ -33,6 +33,7 @@ git clone https://github.com/Kaskly-ask/Kaskly.git
 cd Kaskly
 npm install
 cp .env.example .env        # defaults are correct for testnet-10
+npx prisma generate         # generates the DB client (install does not)
 npx prisma migrate deploy   # creates the local SQLite cache (dev.db)
 npm run dev
 ```

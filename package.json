@@ -10,8 +10,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration --testTimeout=600000 --hookTimeout=120000",
-    "test:all": "vitest run --testTimeout=600000 --hookTimeout=120000"
+    "test:integration": "vitest run tests/integration --testTimeout=600000 --hookTimeout=120000 --no-file-parallelism",
+    "test:all": "vitest run --testTimeout=600000 --hookTimeout=120000 --no-file-parallelism"
   },
   "dependencies": {
     "@noble/ciphers": "^2.2.0",

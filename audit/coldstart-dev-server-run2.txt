@@ -1,0 +1,20 @@
+
+> ask-reference-client@0.1.0 predev
+> node scripts/copy-wasm.mjs
+
+copied kaspa_bg.wasm (11511494 bytes) -> public/
+
+> ask-reference-client@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.2:3000
+- Environments: .env
+✓ Ready in 413ms
+
+ GET / 200 in 2.0s (next.js: 1900ms, application-code: 125ms)
+ GET /api/asks?address=kaspatest:qq0000000000000000000000000000000000000000000000000000000000000 200 in 307ms (next.js: 207ms, application-code: 101ms)
+ GET /api/asks?address=kaspatest:qq0000000000000000000000000000000000000000000000000000000000000 200 in 7ms (next.js: 3ms, application-code: 5ms)
+ GET /api/asks?address=kaspatest%3Aqz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6 200 in 10ms (next.js: 5ms, application-code: 6ms)
+[?25h

@@ -407,6 +407,96 @@ below): lifecycle from automated tests, three terminal states with txids,
 R2 dual verification, R3 attack set green, ASKSPEC v0.1 consistent with
 code, TRUST.md current, tagged `phase-2` (commit `86d5cc3`).
 
+### Phase 4 gate — closure + formal go/no-go (2026-08-04)
+
+**VERDICT: GO — phase 4 closed and tagged.** Beta ran with no new issues;
+the human confirmed the three remaining launch-checklist items complete
+(prod refund witnessed, PWA + QR pass, thread + feedback URL live) and
+confirmed the Earned-widget and F10 resolved-timer visuals displayed
+correctly during beta. Session R7 ritual: 26/26 unit green before work.
+
+**C5 cold-start check (delegated to Claude by the human, with rules:
+README verbatim, every command logged, any knowledge gap = failing
+check).** Full transcript committed at `audit/coldstart-log.txt`
+(+ per-run dev-server outputs, runs 1-3). Outcome:
+- RUN 1 (verbatim README): **FAILED.** `/api/asks` crashed on the fresh
+  clone — `Cannot find module '.prisma/client/default'`. Root cause:
+  README lacked `npx prisma generate` (`migrate deploy` does not
+  generate; the working tree only worked because earlier builds had).
+  Found in the dev server's own output; the landing-page 200 was a
+  false positive (it doesn't touch the DB).
+- Fix: one line added to README cold start; root cause confirmed by
+  adding the step in-place and watching /api/asks go 200.
+- RUN 3 (pristine re-clone per the human's ruling that a patched clone
+  doesn't count; run 2 retained as evidence but not counted): **PASSED
+  end-to-end** — boot proven by the server's own Ready output, a
+  listening-socket check, and the DB-touching API route returning valid
+  JSON; 26/26 unit suite; spike key script OK; zero knowledge gaps.
+- Both failed and clean logs kept deliberately (human instruction): a
+  caught-and-fixed gap is better audit material than a perfect first run.
+
+**F11 — integration suite file-parallelism race on the shared funded
+key (found by the phase-4 gate run, fixed).** The gate's first
+`test:integration` run failed 2/8: both lifecycle locks were rejected as
+mempool double-spends of UTXO `c7ac89e5…:1`. Root cause, evidenced not
+assumed: vitest runs test FILES in parallel; `lifecycle`, `fees`, and
+`rebuild` all fund from the same spike sender key, and REST showed the
+wallet held exactly ONE UTXO — so all three coin-selected the same
+output and the first submission (fees' lock `2026a609…`, accepted
+seconds after suite start) won. Earlier greens were luck: a fragmented
+wallet made collisions unlikely. Fix: `--no-file-parallelism` on
+`test:integration` and `test:all` (money tests sharing a key must never
+run concurrently). Re-run: **8/8 green in 148s.** No money-path code
+involved — harness defect only.
+
+**TRACE closure pass.** Rows flipped to `verified` with per-row cited
+evidence (INT + R2 recomputes re-proven every run; human gate + beta
+evidence; cold-start log; unmapped-code sweep added rows for share
+cards/QR, PWA shell, and local contacts — zero unmapped code remains).
+Three rows stay below `verified` as **documented exceptions**, each with
+owner + return path:
+1. **P1 (stranger-implementable spec)** — the real stranger check is
+   the external audit-v1 review package (owner: human recruits the
+   reviewer; returns with the first reviewer report).
+2. **Attack row: malformed payload** — client-layer by design (chain
+   checks only the 15-byte prefix, ASKSPEC §10). Sender-side status
+   display for a prefix-valid/garbage-body claim is a hardening item in
+   the approved post-tag plan (owner: Claude, next session block).
+3. **Attack row: oversized payload** — client-layer; the consensus
+   payload ceiling remains UNVERIFIED (tracked since Phase 2).
+
+**Phase 4 checklist (brief §9):**
+- [x] PITCH.md complete: problem, mechanic, spec link, live demo link
+      (kaskly.app — freshness-fixed this session), lifecycle txids,
+      adoption path, ISC attribution, 2-3 min demo script
+- [x] README stranger-clonable — proven by the logged cold-start runs
+      (and improved by them: the prisma generate fix)
+- [x] Empty/loading/error states — shipped with Phase 3, exercised in beta
+- [x] Repository cleaned for public eyes — repo public since pre-beta
+      (commit d104779: IDEAS split, redactions, LAN IP scrub)
+- [x] Full suite green: unit 26/26 + lint + build + integration 8/8
+- [x] TRACE at closure state; zero unmapped code; 3 documented
+      exceptions above
+- [~] Demo dry-run: every step of the PITCH.md script was human-verified
+      across the phase-3 gate and beta (full loop, refund, late-reply,
+      QR, rebuild); a literal start-to-finish dry-run is RECOMMENDED
+      before the KaChat pitch meeting (owner: human; non-blocking per
+      the human's explicit tag instruction)
+
+**R4 self-review:** phase-4 delta reviewed against C5, P4/P6, R1-R8 and
+the D-row evidence claims. Deviations: none beyond the three documented
+exceptions above. Code changes in this closure: README (+1 line),
+package.json (test serialization), PITCH.md (freshness), TRACE.md,
+this file, audit/ evidence logs — no protocol-surface code touched.
+
+**Approved next blocks (human, 2026-08-04, via plan approval):**
+adversarial review with mainnet eyes → network-neutral hardening on
+main (incl. F11-adjacent fixes, caps plumbing, MAINNET.md) → audit-v1
+review package (zip on a GitHub Release) → private mainnet validation
+(hybrid branch `mainnet-validation`, local-only deploy, 5 KAS per-Ask
+cap / 15 total-at-risk, human wallets only, canary-first ladder).
+kaskly.app remains testnet-only; the config.ts boot guard is untouched.
+
 ### Notes for the next session (R7 ritual) — updated at session park, 2026-08-05
 
 **WHERE WE STOPPED — LAUNCH-READY.** Everything is built, verified,
@@ -430,9 +520,10 @@ stashed; local prod server stopped at park.
    iOS — full-screen branded launch) + scan a share-card QR end-to-end.
 6. Fire the posts (BETA.md blurb into the thread; share cards to X).
 
-Also still open (non-blocking, post-beta): Phase 4 gate formalities —
-demo dry-run + fresh-clone check, TRACE flips (C5, Earned, F10),
-tag `phase-4` + push with tags; PITCH.md sequenced after beta feedback.
+~~Also still open (non-blocking, post-beta): Phase 4 gate formalities.~~
+RESOLVED 2026-08-04 — see "Phase 4 gate — closure + formal go/no-go"
+above: beta clean, checklist items human-confirmed, cold-start check
+run + logged, TRACE closed (3 documented exceptions), tagged `phase-4`.
 
 **Session ritual:** read this file + TRACE.md; `npm test` (**26 unit
 tests**, sub-second) must be green before new work. Local mirror:

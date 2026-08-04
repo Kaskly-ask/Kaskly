@@ -1,0 +1,279 @@
+=== KASKLY README COLD-START CHECK ===
+Date: 2026-08-04T13:02:28Z  Runner: Claude (phase-4 gate, C5)
+Rule: README followed verbatim; any step needing outside knowledge = FAIL
+
+--- Prerequisite check (README: Node.js >= 24 and npm) ---
+$ node --version
+v24.18.1
+$ npm --version
+11.16.0
+$ git --version
+git version 2.55.0.windows.3
+
+--- README step 1: git clone https://github.com/Kaskly-ask/Kaskly.git ---
+Cloning into 'Kaskly'...
+exit=0
+
+--- README step 2: cd Kaskly ---
+exit=0 (cwd: /c/Users/payde/AppData/Local/Temp/claude/C--ask-protocol/a9d53823-9d8d-4af7-a458-a771cb3d68ca/scratchpad/coldstart/Kaskly); HEAD: b7a6b39
+
+--- README step 3: npm install ---
+npm warn deprecated prebuild-install@7.1.3: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
+
+added 580 packages, and audited 583 packages in 20s
+
+185 packages are looking for funding
+  run `npm fund` for details
+
+3 high severity vulnerabilities
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm warn allow-scripts 5 packages have install scripts not yet covered by allowScripts:
+npm warn allow-scripts   @prisma/engines@7.9.1 (postinstall: node scripts/postinstall.js)
+npm warn allow-scripts   better-sqlite3@12.11.1 (install: prebuild-install || node-gyp rebuild --release)
+npm warn allow-scripts   prisma@7.9.1 (preinstall: node scripts/preinstall-entry.js)
+npm warn allow-scripts   sharp@0.34.5 (install: node install/check.js || npm run build)
+npm warn allow-scripts   unrs-resolver@1.12.2 (postinstall: node postinstall.js)
+npm warn allow-scripts
+npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+exit=0
+
+--- README step 4: cp .env.example .env ---
+exit=0
+
+--- README step 5: npx prisma migrate deploy ---
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+Datasource "db": SQLite database "dev.db" at "file:./dev.db"
+
+SQLite database dev.db created at file:./dev.db
+
+1 migration found in prisma/migrations
+
+Applying migration `20260803122023_init`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20260803122023_init/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+exit=0
+
+--- README step 6: npm run dev → open http://localhost:3000 ---
+HTTP status from http://localhost:3000 after boot: 200
+Page body contains: Kaskly
+
+--- README Tests: npm test ---
+
+> ask-reference-client@0.1.0 test
+> vitest run tests/unit
+
+
+ RUN  v4.1.10 C:/Users/payde/AppData/Local/Temp/claude/C--ask-protocol/a9d53823-9d8d-4af7-a458-a771cb3d68ca/scratchpad/coldstart/Kaskly
+
+
+ Test Files  6 passed (6)
+      Tests  26 passed (26)
+   Start at  16:04:14
+   Duration  614ms (transform 805ms, setup 0ms, import 1.15s, tests 128ms, environment 0ms)
+
+exit=0
+
+--- README Tests (integration prereq): node spike/01-keys.cjs ---
+generated new spike/.keys.json (TESTNET ONLY, gitignored)
+network: testnet-10
+SENDER   (fund this one): kaspatest:qrhumwxqs2rf4grs5her6wx600spqskswy93larnw8g0jgxsrpswqpfa5kynv
+RECIPIENT (no funds needed yet): kaspatest:qzenw7k6sd44zyzknxqd7yvhv4hxhadcs88vurvnj3qj6ywj3xq7vxc3rydm5
+exit=0
+(Funding + npm run test:integration require the faucet — a human step the README discloses, incl. bot-protection fallback. Not runnable cold by design.)
+
+=== VERDICT: PASS ===
+Every README cold-start step ran verbatim to success on a fresh clone (HEAD b7a6b39):
+  clone OK -> npm install exit=0 -> cp .env.example .env OK -> prisma migrate deploy
+  (fresh dev.db, 1 migration) -> npm run dev serves HTTP 200 'Kaskly' at :3000
+  -> npm test 26/26 green -> spike/01-keys.cjs writes keys + prints fund address.
+Knowledge gaps requiring info not in the README: NONE.
+Observations (not failures):
+  1. npm 11.16 'allow-scripts' warning lists 5 packages with uncovered install
+     scripts (prisma engines, better-sqlite3, sharp, unrs-resolver). Nothing was
+     blocked (migrate + dev + tests all green); informational on npm >= 11.16.
+  2. npm audit reports 3 high-severity advisories in the dependency tree at
+     install time. Not a README gap; belongs in routine dependency review.
+  3. Integration suite is not runnable cold by design: faucet funding is a
+     human step and the README says so, including the bot-protection fallback.
+Dev server stopped after verification; clone retained at scratchpad/coldstart/Kaskly.
+
+=== RETRACTION OF VERDICT (same run, minutes later) ===
+The dev server's own output (dev-server-output.txt) shows /api/asks crashed:
+  'Failed to load external module @prisma/client...: Cannot find module .prisma/client/default'
+Root cause: README cold start never runs 'npx prisma generate';
+'prisma migrate deploy' does not generate the client. The landing page 200 was
+a false positive (it does not touch the DB). VERDICT CHANGED TO: FAIL.
+Action: fix README (add 'npx prisma generate'), re-run clean in a second fresh clone.
+
+--- Root-cause confirmation in the failed clone ---
+$ npx prisma generate
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+exit=0
+After 'npx prisma generate': GET /api/asks?address=<sender> -> HTTP 200
+Body: {"sent":[],"received":[]}
+Root cause CONFIRMED: missing 'npx prisma generate' in README cold start.
+
+=== CLEAN RE-RUN (updated README sequence; fix commits with phase-4 closure) ===
+--- git clone https://github.com/Kaskly-ask/Kaskly.git ---
+Cloning into 'Kaskly'...
+exit=0
+HEAD: b7a6b39
+
+--- npm install ---
+npm warn allow-scripts   unrs-resolver@1.12.2 (postinstall: node postinstall.js)
+npm warn allow-scripts
+npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+exit=0
+
+--- cp .env.example .env ---
+exit=0
+
+--- npx prisma generate (the ADDED step) ---
+
+
+exit=0
+
+--- npx prisma migrate deploy ---
+    └─ migration.sql
+
+All migrations have been successfully applied.
+exit=0
+
+--- npm run dev -> verify / AND /api/asks (API check added after the false positive) ---
+GET / -> HTTP 200
+GET /api/asks?address=... -> HTTP 200
+API body: {"sent":[],"received":[]}
+
+--- npm test ---
+ Test Files  6 passed (6)
+      Tests  26 passed (26)
+   Start at  16:07:30
+   Duration  483ms (transform 607ms, setup 0ms, import 1.05s, tests 137ms, environment 0ms)
+
+
+--- node spike/01-keys.cjs ---
+generated new spike/.keys.json (TESTNET ONLY, gitignored)
+network: testnet-10
+SENDER   (fund this one): kaspatest:qqtx8jukwj46dalxpgd8xlgg2ln44tghltacp4dcnrumaw8aeth8zpt5w9gvy
+RECIPIENT (no funds needed yet): kaspatest:qz85a6t8fd2y3h6qsje2ve5har08ag6wtxqy29rp2398y7s3786lkw5jz9lh7
+exit=0
+
+=== FINAL VERDICT: PASS (after one README fix) ===
+Finding (C5, failing check on first run): README cold start lacked
+'npx prisma generate'; /api/asks crashed on a verbatim fresh clone.
+Fix: one line added to README cold start. Clean re-run (second fresh clone,
+HEAD b7a6b39): install, generate, migrate, dev boot, GET / 200, GET /api/asks
+200 with valid JSON, unit suite 26/26, spike/01-keys.cjs OK. No other gaps.
+Verification method upgraded: landing-page 200 alone is insufficient —
+the API route is the DB-touching path and is now part of the check.
+
+=== EXIT-127 DIAGNOSIS (human query) ===
+Claim to check: 'exit 127 = npm not on PATH, server never booted'.
+Evidence against: dev-server output files captured full Next.js boots
+('Ready in 656ms', GET / 200 lines) in both runs — npm ran and served.
+Controlled experiment: background 'node -e setTimeout(...)' (verified running:
+  C:\Program Files\nodejs\node.exe, PID 15956), force-killed -> harness
+  reported 'failed with exit code 127'.
+Conclusion: 127 is this harness's report for a force-killed background job.
+The READMEs' real gap (missing prisma generate) was found in the server's own
+error output, unrelated to the 127s.
+
+=== RUNS 1+2 CLOSED; both retained as evidence per human instruction ===
+Human ruling: patched-clone verification does not count as the clean run.
+Scratchpad clones deleted; RUN 3 = pristine re-clone, corrected README, verbatim.
+
+=== RUN 3 — PRISTINE CLEAN RUN (corrected README, verbatim) ===
+Note: origin still carries the pre-fix README (fix commits with phase-4
+closure); the sequence followed below is the corrected README text.
+Date: 2026-08-04T13:20:40Z
+
+$ git clone https://github.com/Kaskly-ask/Kaskly.git
+Cloning into 'Kaskly'...
+exit=0
+
+$ cd Kaskly
+exit=0  HEAD: b7a6b39
+
+$ npm install
+npm warn allow-scripts
+npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+exit=0
+
+$ cp .env.example .env
+exit=0
+
+$ npx prisma generate
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+exit=0
+
+$ npx prisma migrate deploy
+
+All migrations have been successfully applied.
+exit=0
+
+$ npm run dev   # boot evidence follows
+GET http://localhost:3000/ -> HTTP 200
+GET /api/asks (DB-touching route) -> HTTP 200, body: {"sent":[],"received":[]}
+Server's own output (first lines):
+  | 
+  | > ask-reference-client@0.1.0 predev
+  | > node scripts/copy-wasm.mjs
+  | 
+  | copied kaspa_bg.wasm (11511494 bytes) -> public/
+  | 
+  | > ask-reference-client@0.1.0 dev
+  | > next dev
+  | 
+  | ▲ Next.js 16.2.12 (Turbopack)
+  | - Local:         http://localhost:3000
+  | - Network:       http://192.168.1.2:3000
+  | - Environments: .env
+  | ✓ Ready in 458ms
+Listening-socket proof (Get-NetTCPConnection):
+LISTENING: port 3000  PID 6000  process=node  path=C:\Program Files\nodejs\node.exe
+
+$ npm test
+      Tests  26 passed (26)
+   Start at  16:22:00
+   Duration  523ms (transform 653ms, setup 0ms, import 975ms, tests 139ms, environment 0ms)
+
+
+$ node spike/01-keys.cjs
+generated new spike/.keys.json (TESTNET ONLY, gitignored)
+network: testnet-10
+SENDER   (fund this one): kaspatest:qqyj96sn6gjqsrcr3k6nstztsrr9n54ea3tfez7nwxa9as2jghhrqt4y3kwks
+RECIPIENT (no funds needed yet): kaspatest:qr58ppcmnawur6sjwf7fl30nmcs9ltqameujqlyez6z03t0jdtv3x4svhduhz
+exit=0
+
+Server error scan after all requests:
+  error-line count: 0
+
+Server stopped DELIBERATELY by the runner (Stop-Process). The harness reports
+force-killed background jobs as exit 127 (see EXIT-127 DIAGNOSIS above) — this
+is expected, not a failure.
+
+=== RUN 3 VERDICT: PASS ===
+Pristine clone (HEAD b7a6b39) + corrected README sequence, verbatim, end to end:
+clone -> install -> cp env -> prisma generate -> migrate deploy -> dev server
+BOOTED (Next.js 'Ready in 458ms'; listening socket proven: port 3000, node.exe;
+GET / 200; GET /api/asks 200 valid JSON; zero error lines in server output)
+-> npm test 26/26 -> spike/01-keys.cjs OK.
+Knowledge gaps requiring info not in the corrected README: NONE.
+C5 evidence set: this log (runs 1-3) + dev-server outputs runs 1-3, committed
+under audit/. The failed RUN 1 is retained deliberately: a caught-and-fixed gap
+is the evidence that the check has teeth.

@@ -1,0 +1,43 @@
+
+> ask-reference-client@0.1.0 predev
+> node scripts/copy-wasm.mjs
+
+copied kaspa_bg.wasm (11511494 bytes) -> public/
+
+> ask-reference-client@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.2:3000
+- Environments: .env
+✓ Ready in 656ms
+
+ GET / 200 in 2.0s (next.js: 1920ms, application-code: 123ms)
+ GET / 200 in 33ms (next.js: 4ms, application-code: 30ms)
+⨯ Error: Failed to load external module @prisma/client-2c3a283f134fdcb6: Error: Cannot find module '.prisma/client/default'
+Require stack:
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\node_modules\@prisma\client\default.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\.next\dev\server\chunks\[root-of-the-server]__06gwf2o._.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\.next\dev\server\chunks\[turbopack]_runtime.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\.next\dev\server\app\api\asks\route.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\node_modules\next\dist\server\require.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\node_modules\next\dist\server\load-components.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\node_modules\next\dist\build\utils.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\node_modules\next\dist\server\lib\router-server.js
+- C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\node_modules\next\dist\server\lib\start-server.js
+    at module evaluation (src\lib\db.ts:4:1)
+    at module evaluation (src\lib\repo.ts:3:1)
+    at module evaluation (src\app\api\asks\route.ts:6:1)
+    at Object.<anonymous> (C:\Users\payde\AppData\Local\Temp\claude\C--ask-protocol\a9d53823-9d8d-4af7-a458-a771cb3d68ca\scratchpad\coldstart\Kaskly\.next\dev\server\app\api\asks\route.js:6:3)
+  2 | // nothing here is authoritative — every status is derivable from chain state
+  3 | // and the rebuild-from-chain check proves it.
+> 4 | import { PrismaClient } from "@prisma/client";
+    | ^
+  5 | import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+  6 |
+  7 | const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }; {
+  page: '/api/asks'
+}
+[?25h
