@@ -29,15 +29,11 @@ _Anything out of scope for the ASK v2.0 brief lands here instead of in code
 
 _(add below as they come up)_
 
-- **Archive/dismiss for Inbox+Sent (v1.1, volume solution)** (parked
-  2026-08-04, gate finding F9 — demoted after the card-collapse fix made
-  it non-urgent). Design as specified at the gate: dismiss moves cards to
-  a collapsed always-recoverable "Archived" section — NEVER delete (Asks
-  are chain state and must not be silently hidable while money is
-  claimable); settled Asks (answered/refunded/expired) dismiss freely;
-  LIVE Asks require a confirm showing amount + deadline; dismissals are
-  localStorage view-state only (rebuild-from-chain restores data, may
-  respect dismissals); consider auto-collapsing settled Asks.
+- **Hide live Asks with confirm (v1.1)** (2026-08-04, gate finding F9;
+  the settled-only hide/unhide version SHIPPED in Phase 3). Remaining
+  future scope: allowing LIVE Asks (claimable funds) to be hidden behind
+  a confirm showing amount + deadline — never delete, always
+  recoverable. Also: consider auto-collapsing settled Asks by age.
 - **Unified Activity feed (v1.1)** (parked 2026-08-04, gate design note):
   replies currently surface on Sent, which buries the product's payoff
   moment (near-term mitigation: the Sent unread badge). Evolution: one

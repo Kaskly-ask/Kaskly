@@ -88,6 +88,26 @@ export function StatusChip({ status }: { status: AskStatus }) {
   );
 }
 
+/** Collapsed, always-recoverable container for hidden cards (F9 v1: only
+ * settled cards can land here — the pages enforce that rule). */
+export function HiddenSection({
+  count,
+  children,
+}: {
+  count: number;
+  children: ReactNode;
+}) {
+  if (count === 0) return null;
+  return (
+    <details>
+      <summary className="cursor-pointer text-sm text-muted hover:text-foreground select-none">
+        Hidden ({count})
+      </summary>
+      <div className="space-y-4 mt-4 opacity-75">{children}</div>
+    </details>
+  );
+}
+
 export function ExplorerLink({ txid, label }: { txid: string; label: string }) {
   return (
     <a

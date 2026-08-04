@@ -16,7 +16,13 @@ import { useChain } from "@/lib/chain";
 import { useDecrypted } from "@/lib/use-decrypted";
 import { getNote, setNote } from "@/lib/local-notes";
 import { formatKas } from "@/lib/config";
-import { AskCard, CollapsibleText, ExplorerLink } from "@/components/ask-card";
+import {
+  AskCard,
+  CollapsibleText,
+  ExplorerLink,
+  HiddenSection,
+} from "@/components/ask-card";
+import { useHidden } from "@/lib/use-hidden";
 import { MAX_MESSAGE_BYTES, messageByteLength } from "@/lib/ask/protocol";
 
 /** Debounced mass-based fee/net quote for the current reply draft (F7). */
@@ -46,10 +52,13 @@ function InboxItem({
   ask,
   daaScore,
   onChanged,
+  hideAction,
 }: {
   ask: LiveAsk;
   daaScore: bigint | null;
   onChanged: (a: LiveAsk) => void;
+  /** F9 v1: pages pass this ONLY for settled cards (never while open). */
+  hideAction?: React.ReactNode;
 }) {
   const { wallet } = useWallet();
   const { getRpc } = useChain();
@@ -112,6 +121,7 @@ function InboxItem({
           <ExplorerLink txid={ask.lockTxid} label="lock" />
           {ask.claimTxid && <ExplorerLink txid={ask.claimTxid} label="your reply" />}
           {ask.refundTxid && <ExplorerLink txid={ask.refundTxid} label="refund" />}
+          {hideAction}
         </>
       }
     >
@@ -189,9 +199,15 @@ function InboxItem({
 export default function InboxPage() {
   const { wallet, status } = useWallet();
   const { asks, loading, error, daaScore, upsertLocal } = useAsks("recipient");
+  const { hidden, hide, unhide } = useHidden();
   // "failed" rows are never surfaced (§4); "pending" rows show with the
   // verifying indicator until the chain settles them.
   const visible = asks.filter((a) => a.verification !== "failed");
+  const active = visible.filter((a) => !hidden.has(a.askRef));
+  const hiddenAsks = visible.filter((a) => hidden.has(a.askRef));
+  // F9 v1 rule: only settled cards may be hidden — open Asks hold
+  // claimable money and get no affordance at all.
+  const settled = (a: LiveAsk) => a.status !== "open";
 
   return (
     <section className="space-y-5">
@@ -210,15 +226,43 @@ export default function InboxPage() {
         </p>
       )}
       <div className="space-y-4">
-        {visible.map((a) => (
+        {active.map((a) => (
           <InboxItem
             key={a.askRef}
             ask={a}
             daaScore={daaScore}
             onChanged={upsertLocal}
+            hideAction={
+              settled(a) ? (
+                <button
+                  onClick={() => hide(a.askRef)}
+                  className="text-xs text-faint hover:text-muted underline decoration-dotted"
+                >
+                  hide
+                </button>
+              ) : undefined
+            }
           />
         ))}
       </div>
+      <HiddenSection count={hiddenAsks.length}>
+        {hiddenAsks.map((a) => (
+          <InboxItem
+            key={a.askRef}
+            ask={a}
+            daaScore={daaScore}
+            onChanged={upsertLocal}
+            hideAction={
+              <button
+                onClick={() => unhide(a.askRef)}
+                className="text-xs text-teal hover:underline decoration-dotted"
+              >
+                unhide
+              </button>
+            }
+          />
+        ))}
+      </HiddenSection>
     </section>
   );
 }

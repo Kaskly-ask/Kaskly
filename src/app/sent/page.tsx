@@ -11,9 +11,24 @@ import { useAsks, type LiveAsk } from "@/lib/use-asks";
 import { useDecrypted } from "@/lib/use-decrypted";
 import { getNote } from "@/lib/local-notes";
 import { cacheAsk, clearCache } from "@/lib/asks-client";
-import { AskCard, CollapsibleText, ExplorerLink } from "@/components/ask-card";
+import {
+  AskCard,
+  CollapsibleText,
+  ExplorerLink,
+  HiddenSection,
+} from "@/components/ask-card";
+import { useHidden } from "@/lib/use-hidden";
 
-function SentItem({ ask, daaScore }: { ask: LiveAsk; daaScore: bigint | null }) {
+function SentItem({
+  ask,
+  daaScore,
+  hideAction,
+}: {
+  ask: LiveAsk;
+  daaScore: bigint | null;
+  /** F9 v1: pages pass this ONLY for settled cards (never while open). */
+  hideAction?: React.ReactNode;
+}) {
   // The on-chain message is encrypted to the RECIPIENT; the sender's own
   // plaintext comes from the local note written at compose time.
   const message = getNote(ask.askRef, "message");
@@ -33,6 +48,7 @@ function SentItem({ ask, daaScore }: { ask: LiveAsk; daaScore: bigint | null }) 
           <ExplorerLink txid={ask.lockTxid} label="lock" />
           {ask.claimTxid && <ExplorerLink txid={ask.claimTxid} label="reply" />}
           {ask.refundTxid && <ExplorerLink txid={ask.refundTxid} label="refund" />}
+          {hideAction}
         </>
       }
     >
@@ -110,6 +126,11 @@ function RebuildButton() {
 export default function SentPage() {
   const { wallet, status } = useWallet();
   const { asks, loading, error, daaScore } = useAsks("sender");
+  const { hidden, hide, unhide } = useHidden();
+  const active = asks.filter((a) => !hidden.has(a.askRef));
+  const hiddenAsks = asks.filter((a) => hidden.has(a.askRef));
+  // F9 v1 rule: only settled cards may be hidden.
+  const settled = (a: LiveAsk) => a.status !== "open";
 
   return (
     <section className="space-y-5">
@@ -134,10 +155,41 @@ export default function SentPage() {
         </p>
       )}
       <div className="space-y-4">
-        {asks.map((a) => (
-          <SentItem key={a.askRef} ask={a} daaScore={daaScore} />
+        {active.map((a) => (
+          <SentItem
+            key={a.askRef}
+            ask={a}
+            daaScore={daaScore}
+            hideAction={
+              settled(a) ? (
+                <button
+                  onClick={() => hide(a.askRef)}
+                  className="text-xs text-faint hover:text-muted underline decoration-dotted"
+                >
+                  hide
+                </button>
+              ) : undefined
+            }
+          />
         ))}
       </div>
+      <HiddenSection count={hiddenAsks.length}>
+        {hiddenAsks.map((a) => (
+          <SentItem
+            key={a.askRef}
+            ask={a}
+            daaScore={daaScore}
+            hideAction={
+              <button
+                onClick={() => unhide(a.askRef)}
+                className="text-xs text-teal hover:underline decoration-dotted"
+              >
+                unhide
+              </button>
+            }
+          />
+        ))}
+      </HiddenSection>
     </section>
   );
 }
