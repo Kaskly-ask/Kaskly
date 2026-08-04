@@ -76,6 +76,7 @@ export function AskCard({
   deadline,
   daaScore,
   status,
+  badge,
   footer,
   children,
 }: {
