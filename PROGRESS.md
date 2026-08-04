@@ -92,6 +92,23 @@ Written truthfully instead as: "doesn't need to be in crypto — a wallet
 is two clicks in a browser, no exchange, no purchase… KAS they earned,
 not bought." Human may veto/adjust.
 
+### Share card + QR (pre-beta feature, promoted from IDEAS 2026-08-05)
+
+Wallet-only scope (profiles remain future). Shipped: canvas-rendered
+1200×675 PNG share card (client-side only, no server render) in the
+app's exact visual system — near-black, teal glows, covenant-hex
+texture, clear-glass panel, wordmark + "Just Ask Me", CTA line,
+truncated address as visual confirmation only, SOLID TESTNET tag
+(honesty never translucent), QR on a white tile for scanner contrast.
+The QR encodes an ASK LINK (`<origin>/ask?to=<address>`), never a raw
+address; the composer learned `?to=` prefill (never clobbers typed
+input). Wallet panel gained the "Share your Ask link" block: live card
+preview, Download, copy-my-Ask-link, and three paste-ready post texts
+with copy buttons. One new dependency: `qrcode` (node-qrcode,
+maintained). Note: the link uses the CURRENT origin — cards downloaded
+during beta carry the beta URL; regenerate after the kaskly.app DNS
+switch.
+
 ### Phase 4 scope amendment — Discord testnet beta (human, 2026-08-04)
 
 Beta with the Kaspa Discord community BEFORE public launch; the app

@@ -29,16 +29,12 @@ _Anything out of scope for the ASK v2.0 brief lands here instead of in code
 
 _(add below as they come up)_
 
-- **Shareable Onboarding Card** (logged 2026-08-05, post-beta growth
-  hook): on wallet/profile setup completion, auto-generate a
-  downloadable share card — canvas-rendered PNG sized for X — with the
-  username/handle, a kaskly.app profile link + QR (NOT a raw address),
-  and a CTA blurb on the tagline ("I'm on Kaskly — Just Ask Me. Send me
-  a question with KAS attached and I'll answer."), in the app's dark
-  near-black + teal glass aesthetic. The hook: the moment onboarding
-  ends, a ready-to-post asset is in hand. **Prerequisite:** a
-  profile/handle layer (the client is wallet-only today), so the scope
-  includes lightweight profiles. Out of v1 — log only.
+- **Shareable Onboarding Card** — **PROMOTED & SHIPPED 2026-08-05 in a
+  wallet-only scope** (share card PNG + QR encoding `/ask?to=<addr>`,
+  copy-link, paste-ready posts, composer ?to= prefill — see PROGRESS).
+  Remaining future scope from the original idea: the PROFILE/HANDLE
+  layer (username on the card instead of a truncated address, kaskly.app
+  profile links) — still post-beta, still requires lightweight profiles.
 - **Crowd-Funded Community Question Board** (logged 2026-08-05,
   post-beta, MAJOR feature): a public board where anyone submits
   questions aimed at a creator; the community contributes KAS toward

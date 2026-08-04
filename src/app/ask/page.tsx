@@ -2,7 +2,7 @@
 // S1 COMPOSE (brief §3.2): recipient (address or .kas), message, amount,
 // deadline picker (7-day default), TESTNET badge in header, honesty line
 // sourced from TRUST.md. There is deliberately no fee line (D2).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/lib/wallet";
 import { useChain } from "@/lib/chain";
@@ -59,6 +59,22 @@ export default function ComposePage() {
   const [phase, setPhase] = useState<"idle" | "sending" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [sentTxid, setSentTxid] = useState<string | null>(null);
+
+  // Share-link entry (?to=<address-or-.kas>): prefill the recipient once,
+  // never clobbering anything the user already typed.
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const to = new URLSearchParams(window.location.search).get("to");
+      if (to && to.length <= 130) {
+        setRecipient((cur) => cur || to.trim());
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const send = async () => {
     if (!wallet) return;

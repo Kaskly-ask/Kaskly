@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PRIVATE_KEY_RE, sanitizeKeyInput, useWallet } from "@/lib/wallet";
+import { ShareAsk } from "./share-ask";
 import { useChain } from "@/lib/chain";
 import { formatKas } from "@/lib/config";
 
@@ -83,6 +84,7 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
                   : "ownership proof FAILED"}
               </span>
             </div>
+            <ShareAsk address={wallet.address} />
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
