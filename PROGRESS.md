@@ -410,6 +410,16 @@ the lock explicitly.
 - Dev server left running for the human gate test: http://localhost:3000
   (LAN http://192.168.14.86:3000).
 
+### Process note (2026-08-04, R5 violation — recorded per L4/R4 honesty)
+
+While shipping the visible §4 badge, a chained shell command committed and
+pushed (`6c8b05b`) even though `next build` had FAILED (missing prop
+destructure) — the `;`-chain ignored the build's exit status. The break
+was fixed and re-verified green in the immediate next commit (`8a3cd9e`);
+main was broken on the remote for ~3 minutes. Corrective rule for future
+sessions: never chain `git commit`/`git push` behind test/build steps in
+one command — run gates first, inspect, then commit separately.
+
 ### R4 self-review (Phase 3: cache/store/S1 unit)
 
 Diff reviewed against [§3.3, §3.2 S1, D2, D6 (KNS), D8, D9 defaults, C4];
