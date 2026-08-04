@@ -29,6 +29,33 @@ _Anything out of scope for the ASK v2.0 brief lands here instead of in code
 
 _(add below as they come up)_
 
+- **Shareable Onboarding Card** (logged 2026-08-05, post-beta growth
+  hook): on wallet/profile setup completion, auto-generate a
+  downloadable share card — canvas-rendered PNG sized for X — with the
+  username/handle, a kaskly.app profile link + QR (NOT a raw address),
+  and a CTA blurb on the tagline ("I'm on Kaskly — Just Ask Me. Send me
+  a question with KAS attached and I'll answer."), in the app's dark
+  near-black + teal glass aesthetic. The hook: the moment onboarding
+  ends, a ready-to-post asset is in hand. **Prerequisite:** a
+  profile/handle layer (the client is wallet-only today), so the scope
+  includes lightweight profiles. Out of v1 — log only.
+- **Crowd-Funded Community Question Board** (logged 2026-08-05,
+  post-beta, MAJOR feature): a public board where anyone submits
+  questions aimed at a creator; the community contributes KAS toward
+  questions they want answered; a live leaderboard ranks by pooled
+  total, and top questions become high-value Asks. Cold-outreach
+  onboarding hook: send the funded question link to a target with NO
+  Kaskly wallet — they see the pot, answer, claim via a client-side
+  auto-generated wallet, and are onboarded already funded. Design notes
+  for future scoping:
+  1. Pooled escrow needs PROTOCOL design — likely N per-contributor
+     covenant locks with individual deadline refunds, preserving the
+     non-custodial + refund guarantees (never app-pooled custody);
+  2. Longer default deadlines + clear all-refund messaging, since
+     targets don't know the question exists;
+  3. A moderation stance is REQUIRED before any public, money-attached
+     question board exists (harassment vector).
+  Log only — no build.
 - **Sender-side "refunded back" total** (parked 2026-08-04, alongside
   the queued recipient-side "Earned" widget): running total of TKAS
   returned to the connected wallet by refunds. Lower priority than
