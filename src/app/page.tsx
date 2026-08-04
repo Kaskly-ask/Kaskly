@@ -31,7 +31,7 @@ export default function LandingPage() {
         </h1>
         <p className="text-muted text-lg leading-relaxed max-w-xl">
           Kaskly attaches real money to your message. They reply, they earn
-          it. They stay silent, you get every cent back — automatically.
+          it. They stay silent, it comes back to you — automatically.
         </p>
         <div className="flex flex-wrap items-center gap-5">
           <Link href="/ask" className={CTA}>
@@ -88,7 +88,7 @@ export default function LandingPage() {
               3 · Silence refunds you
             </p>
             <p className="text-[15px] leading-relaxed">
-              The deadline passes and the chain returns every cent. No
+              The deadline passes and the chain returns your KAS. No
               permission needed — from anyone.
             </p>
           </div>

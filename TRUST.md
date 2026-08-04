@@ -4,29 +4,64 @@ _This file is the plain-language map of what the Kaspa chain enforces versus
 what requires trusting the app. It must stay accurate with every escrow
 change, and be readable by a non-developer. (Brief §7 L1, §8 R6.)_
 
-## Current status (after Phase 2 library + test suite, 2026-08-03)
+## ⚠️ UNDER REVISION — three claims below were found FALSE (2026-08-04)
 
-The escrow design is **proven on the Kaspa test network**, now via an
-automated test suite that re-proves it on demand. In plain words, what the
-chain itself enforces — meaning no one, including the people who run this
-app, can break these rules:
+**A security review of our own escrow found real defects. We are
+correcting this document immediately rather than waiting for the fix,
+because an earlier version of it claimed protections the code does not
+deliver.** This is testnet only, so no real money was ever at risk — but
+the claims were wrong and you should know exactly how.
 
-1. **Only the recipient can claim the money, and only with a transaction
-   that carries a reply.** Chain rejects wrong-key claims, claims with no
-   reply, and claims with a non-ASK payload. Proven.
+What was found (all recorded publicly in PROGRESS.md, findings F12-F23):
+
+1. **A refund can pay you back LESS than you locked (F12 — proven on
+   chain).** The escrow rule checks the refund's *outgoing* side but never
+   limits how many locked Asks can be spent at once. Someone can refund
+   several of your expired Asks in one transaction that pays you only the
+   largest one, and the rest goes to a miner as fee. We demonstrated this
+   on testnet: 4 KAS locked, 2.995 KAS returned, 0.995 KAS lost.
+2. **Very small Asks can become permanently stuck (F13).** Below roughly
+   0.105 KAS, the network fee required to move the money exceeds what the
+   escrow rule allows the refund to spend — so neither a reply nor a
+   refund can ever succeed and the funds stay locked forever. The app
+   currently only blocks Asks below 0.005 KAS, which is far too low.
+3. **A "reply" is enforced much more loosely than we said (F22).** The
+   chain only checks that a claim's payload *starts with* our 15-byte
+   label. It does not verify the reply is real, readable, or that it
+   belongs to your Ask — so one payload can claim several people's Asks
+   at once, and a claim carrying nonsense still takes the money.
+
+A fourth, related problem: when a claim like that happens, this app has
+been **showing the sender "refunded — every sompi is back in your
+wallet"** even though the money went to the recipient (F14). That is a
+display bug in the app, not the chain, and it is being fixed.
+
+A revised escrow rule covering these is being designed and will be
+re-proven on testnet before it ships. Until then, treat the guarantees
+below as the corrected — and smaller — set.
+
+## What the chain really enforces (corrected 2026-08-04)
+
+Still true, and re-proven by the automated suite on every run:
+
+1. **Only the recipient can move the money, and only in a transaction
+   carrying a payload with our label.** Chain rejects wrong-key claims and
+   claims with no payload or a non-ASK payload. True — but see F22 above:
+   "carrying our label" is much weaker than "carrying a genuine reply to
+   this Ask", which is what we previously implied.
 2. **Before the deadline, the sender cannot take the money back.** Chain
    rejects early refunds. Proven.
 3. **After the deadline, the refund needs nobody's permission and nobody's
-   key.** The refund transaction carries NO signature — anyone can send it,
-   and the covenant only lets it pay the full amount (minus network fee) to
-   the sender, as the only output. The chain rejects refunds to any other
-   address, refunds with extra outputs, and refunds that shortchange the
-   sender. All proven.
-4. **Once the refund happens, a late reply can never take the money.**
+   key.** The refund carries NO signature — anyone can send it, and it can
+   only pay *your* address, as the only output. The chain rejects refunds
+   to any other address and refunds with extra outputs. Proven. **What it
+   does NOT guarantee: that you get the full amount back** — see F12.
+4. **Once a refund happens, a late reply can never take the money.**
    Proven: the chain rejects it as a double-spend.
-5. **There are no app fees, provably.** Every test decodes the real
-   transactions from independent chain data: money goes
-   recipient-or-sender, whole, nothing else. Proven on every run.
+5. **There are no app fees.** Every test decodes the real transactions
+   from independent chain data: money goes recipient-or-sender, and no fee
+   output exists anywhere. Proven on every run. (Network *miner* fees are
+   separate and unavoidable — F12 and F13 are both about those.)
 
 ## The one honest caveat
 
@@ -96,3 +131,18 @@ app adds, honestly:
 - **Testnet only** for this entire project (no real money).
 - **No fees**, ever, at the protocol level (D2).
 - **Non-custodial**: your keys never touch a server (D4).
+
+## Why this page changed
+
+We ran an adversarial review of our own code with "how would I steal
+these funds" as the goal, and it found the problems above. We chose to
+correct this page the same day rather than quietly fix the code first,
+because a trust document that overstates its guarantees is worse than no
+trust document. The full findings — including the ones not listed here,
+and the ones that turned out to be fine — are in PROGRESS.md, and the
+testnet transaction that demonstrates F12 is recorded there with its
+transaction id so anyone can check it against the chain.
+
+No path was found for anyone to steal a locked Ask from its intended
+recipient, and no path was found to keys or funds through this app's
+server — it never holds either.

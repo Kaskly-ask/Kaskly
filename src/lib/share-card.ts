@@ -112,20 +112,23 @@ export async function renderShareCard(
   ctx.font = appFont(400, 26);
   ctx.fillText("Just Ask Me", LX + 220, P.y + 108);
 
-  // CTA (workshopped 2026-08-05); the hook line renders in teal — it is
-  // the recurring brand element ("Guaranteed by on-chain math").
+  // CTA (workshopped 2026-08-04). The teal hook line previously read
+  // "Guaranteed by on-chain math." — removed 2026-08-04 because findings
+  // F12/F13/F22 falsified it, and this card is an IMAGE users post
+  // publicly under their own name. Kept the invitation, dropped the
+  // guarantee.
   ctx.fillStyle = "#e8eaea";
   ctx.font = appFont(600, 34);
   ctx.fillText("Ask me anything — an answer,", LX, P.y + 192);
   ctx.fillText("or your money back.", LX, P.y + 236);
   ctx.fillStyle = TEAL;
   ctx.font = appFont(600, 28);
-  ctx.fillText("Guaranteed by on-chain math.", LX, P.y + 282);
+  ctx.fillText("On-chain escrow on Kaspa.", LX, P.y + 282);
 
   ctx.fillStyle = "rgba(154,160,162,0.85)";
   ctx.font = appFont(400, 24);
   ctx.fillText("They reply, they earn it. Silence refunds you.", LX, P.y + 330);
-  ctx.fillText("Enforced on-chain. No fees, ever.", LX, P.y + 362);
+  ctx.fillText("No protocol fees, ever. Testnet beta.", LX, P.y + 362);
 
   ctx.fillStyle = "rgba(107,112,114,1)";
   ctx.font = appFont(400, 24, true);

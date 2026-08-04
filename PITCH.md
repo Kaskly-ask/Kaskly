@@ -5,9 +5,11 @@
 
 Ever sent a message to someone you respect — a creator, a founder,
 anyone with a flooded inbox — and watched it die unopened? **Attach KAS
-to it.** They reply, they get the money. They don't, you get every cent
-back. The only two endings are a reply or a refund: **a reply, or your
-money back — late replies lose to the refund.**
+to it.** They reply, they get the money. They don't, it comes back to
+you at the deadline. The only two endings are a reply or a refund: **a
+reply, or your money back — late replies lose to the refund.**
+(See the correction notice below before relying on the guarantee
+wording — findings F12/F13/F22.)
 
 ## The mechanic (chain-enforced, no trusted party, no fees)
 
@@ -19,8 +21,20 @@ with exactly two spend paths:
   money*, atomically.
 - **Refund** — after the deadline (CLTV on DAA score), **no signature
   at all**: anyone can broadcast it, and the covenant pins destination,
-  output count, and amount so it can only pay the sender in full. Any
-  watcher closes the late-reply window in the first post-deadline block.
+  output count, and a minimum amount to the sender. Any watcher closes
+  the late-reply window in the first post-deadline block.
+
+> **Read this before evaluating the above (2026-08-04).** Our own
+> adversarial review found the covenant pins the refund's *output* side
+> but not its *input* side, so several of one sender's expired Asks can
+> be batch-refunded into a single output and the surplus taken as miner
+> fee — proven on testnet-10, 0.995 KAS lost (F12). Two related defects:
+> Asks below ~0.105 KAS are permanently unspendable because storage mass
+> outgrows the fixed fee allowance (F13), and the claim branch checks
+> only the payload's 15-byte label, so one reply can claim several
+> senders' Asks (F22). A revised covenant covering all three is being
+> designed and must be re-proven on testnet before this pitch is acted
+> on. Full findings: PROGRESS.md F12–F23.
 
 There are **no protocol fees** — no fee outputs, no fee addresses, by
 design, forever. Messages and replies are encrypted with **Kasia's own

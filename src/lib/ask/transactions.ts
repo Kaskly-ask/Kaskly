@@ -191,8 +191,14 @@ export interface RefundParams {
 
 /** Build the sig-less anyone-can-trigger refund transaction (A4). Valid
  * only once virtual DAA >= deadline (consensus finality + covenant CLTV).
- * The FIXED fee allowance is safe here: a refund never carries a payload,
- * so its mass is small and constant regardless of message/reply sizes. */
+ *
+ * WARNING (F13, 2026-08-04): the comment here previously claimed the fixed
+ * fee allowance is safe because a refund's mass is "small and constant".
+ * That is FALSE. Refund mass is dominated by KIP-9 storage mass, which
+ * scales inversely with the output value — below ~0.105 KAS the required
+ * fee exceeds REFUND_FEE_ALLOWANCE and no valid refund exists at all,
+ * stranding the funds permanently. See PROGRESS.md F13 and
+ * audit/verify-refund-mass.cjs. Not yet fixed. */
 export function buildRefundTransaction(params: RefundParams): Transaction {
   const tx = createTransaction(
     [params.covenantUtxo],

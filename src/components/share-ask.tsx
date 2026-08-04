@@ -60,13 +60,16 @@ export function ShareAsk({ address }: { address: string }) {
     setTimeout(() => setCopied(null), 1500);
   };
 
-  // Workshopped 2026-08-05: excited-share energy, not solicitation — the
-  // refund guarantee is the emotional center, "guaranteed by on-chain
-  // math" the recurring hook.
+  // Workshopped 2026-08-04: excited-share energy, not solicitation.
+  // Revised 2026-08-04 (F12/F13/F22): these texts go out under the USER'S
+  // name to their audience, so they must not promise more than the escrow
+  // delivers. Removed "guaranteed by on-chain math", "every cent back",
+  // "No trust needed, just math", and "the chain enforces it" — all of
+  // which our own review falsified. Keep the energy, drop the guarantee.
   const posts = [
-    `Hey everyone — I'm on Kaskly now! Send me questions and I'll reply, or your money back, guaranteed by on-chain math: ${askUrl}`,
-    `This is cool — you can now ask me anything on Kaskly! Attach some KAS to your question: I answer, I earn it. I go silent, you get every cent back automatically. No trust needed, just math: ${askUrl}`,
-    `Ask me anything on Kaskly. An answer or your refund — the chain enforces it: ${askUrl}`,
+    `Hey everyone — I'm on Kaskly now! Send me a question with KAS attached: I reply and earn it, or it comes back to you at the deadline. Testnet beta: ${askUrl}`,
+    `This is cool — you can now ask me anything on Kaskly! Attach some KAS to your question: I answer, I earn it. I go silent, it returns to you automatically. On-chain escrow, testnet beta: ${askUrl}`,
+    `Ask me anything on Kaskly — an answer, or your KAS comes back at the deadline: ${askUrl}`,
   ];
 
   return (

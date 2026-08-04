@@ -187,6 +187,22 @@ payment cannot be separated.
   replying, the money is R's.)
 - Payload: a reply payload (§2.2). The chain enforces only the 15-byte
   prefix; the rest is client-validated (§2.3).
+
+> **CORRECTION / EMPHASIS (2026-08-04, finding F22).** This spec has
+> always stated the 15-byte limit here, but described the guarantee
+> elsewhere as "a transaction that carries a reply", which reads far
+> stronger than what the opcodes do. Stated plainly: the chain does NOT
+> verify that the payload contains a well-formed reply, that it is
+> readable, or **that it refers to the Ask being claimed**. Two
+> consequences follow, both valid under the current covenant:
+> (a) a claim carrying the 15-byte label plus arbitrary bytes takes the
+> money; (b) a recipient holding Asks from SEVERAL senders can spend all
+> of those covenant UTXOs in ONE transaction bearing ONE reply payload,
+> so every one of those senders pays for a reply only one of them
+> receives. Implementations MUST NOT present "answered" to a sender on
+> the strength of a payload alone — see §7's corrected classification
+> rule — and a revised covenant SHOULD bind the claim to this Ask by
+> checking the payload's `ref` rather than only its prefix.
 - Signature: schnorr, `SIGHASH_ALL`, over the transaction with the
   covenant UTXO's SPK/amount committed (standard Kaspa sighash).
 - Signature script: `push(sig ‖ sighashType) push(0x01) push(redeemScript)`
@@ -218,9 +234,27 @@ the locked amount, clients SHOULD display the net amount for long
 replies, and MUST reject replies whose minimum fee would meet or exceed
 the locked amount.
 
-The refund path is unaffected: refund transactions carry no payload, so
-their mass is small and constant — the fixed `REFUND_FEE_ALLOWANCE`
-pinned by the covenant is always sufficient.
+> **CORRECTION (2026-08-04, finding F13 — this paragraph previously
+> stated the opposite and was WRONG).** An earlier version of this spec
+> claimed: *"refund transactions carry no payload, so their mass is small
+> and constant — the fixed `REFUND_FEE_ALLOWANCE` pinned by the covenant
+> is always sufficient."* That is false. A refund's mass is dominated by
+> **KIP-9 storage mass**, which scales inversely with the OUTPUT VALUE and
+> is unrelated to payload size. Measured against the pinned SDK on both
+> `mainnet` and `testnet-10`: a 0.006 KAS Ask yields refund mass 8,333,334
+> with no valid fee at all; 0.025 KAS requires 10,000,000 sompi; 0.1 KAS
+> requires 526,300 — all above the fixed 500,000 allowance. The allowance
+> is sufficient only above **~0.105 KAS**.
+>
+> Consequence: an Ask locked below that threshold can never be refunded
+> (the covenant pins the output at `>= minRefund`, so the refund cannot
+> pay the larger fee) and can never be claimed either — **the funds are
+> permanently unspendable**. Implementations MUST compute the refund's
+> required fee for the intended amount at lock time and MUST refuse to
+> create an Ask whose refund would be unaffordable. A fixed allowance is
+> NOT safe; deriving `REFUND_FEE_ALLOWANCE` per-Ask from the actual mass
+> is the recommended fix and does not change the covenant template
+> (the allowance enters only through the `minRefund` parameter).
 
 ## 6. Refund transaction (lifecycle REFUND)
 
@@ -230,9 +264,32 @@ any party (S's client, R's client, a watchtower, anyone) can broadcast it.
 - `lockTime = deadlineDaa` (same threshold class; consensus refuses the tx
   before that DAA score — "input not finalized").
 - Input `sequence` MUST NOT be `MAX_U64` (use 0). `sigOpCount = 0`.
-- Exactly one output: `minRefund` sompi to S's address (the covenant
-  rejects anything else: wrong destination, extra outputs, or a smaller
-  amount all fail script verification).
+- Exactly one output: `minRefund` sompi to S's address. The covenant
+  rejects a wrong destination, extra outputs, and a smaller amount — all
+  fail script verification.
+
+> **CORRECTION (2026-08-04, finding F12 — PROVEN ON CHAIN).** The bullet
+> above previously read "the covenant rejects anything else", which
+> overstated it in two ways. (a) The amount check is a FLOOR
+> (`OpGreaterThanOrEqual`), not equality — paying more than `minRefund` is
+> valid. (b) **The covenant constrains only the OUTPUT side. Nothing pins
+> the INPUT set.** Several covenant UTXOs sharing one sender can therefore
+> be spent by a SINGLE signature-less transaction with ONE output equal to
+> the largest `minRefund`; every input's script passes, and the surplus is
+> captured as miner fee. Demonstrated on testnet-10: lock
+> `ceb03d9b577c00445cc0f6a5f50b9540a7040f3844e491af8d9bc62429c52edd`,
+> batched refund
+> `ab5575a6efb645b8ef57d0ec251a481efb80f8b00e9f052b71f5d277bfd73566` —
+> 4 KAS locked across two covenants, 2.995 KAS returned to the sender,
+> **0.995 KAS lost**. Any chain observer can construct this; no key is
+> required.
+>
+> A revised covenant MUST pin the input side — minimally
+> `OpTxInputCount == 1`, or preferably
+> `output[0].amount >= OpTxInputAmount(OpTxInputIndex) - allowance`.
+> `OpTxInputCount` (179), `OpTxInputIndex` (185) and `OpTxInputAmount`
+> (190) are all present in the pinned SDK. This is a breaking change: it
+> alters the redeem script, every P2SH address, and the spec version.
 - No payload required (the prefix check lives only in the claim branch).
 - Signature script: `push(<empty>) push(redeemScript)`.
 
@@ -249,6 +306,21 @@ the hex payload starts with `hex(ASK_PREFIX)`; parse per §2.3.
   `open`; spent by a tx with an `r` payload → `answered` (the reply is in
   that tx); spent otherwise after deadline → `refunded`. Every status is
   derivable from chain state alone; indexers/caches are optional.
+
+> **CORRECTION (2026-08-04, findings F14/F15/F22).** The classification
+> rule above is unsafe as written and MUST be tightened. Classifying by
+> payload alone lets a claim masquerade as a refund and lets a
+> non-spending transaction masquerade as a reply. Implementations MUST:
+> (a) classify `refunded` only on a POSITIVE test — the spending tx has
+> exactly one output, paying S's address, of at least `minRefund`, at or
+> after the deadline — and never as a fallback when payload parsing
+> fails; (b) require that a transaction claimed to be a reply actually
+> SPENT the covenant UTXO, not merely that it carries a matching `ref`
+> (any observer can broadcast such a payload for dust); (c) verify the
+> reply's `ref` equals this Ask's lock txid. A spend that is neither a
+> valid refund nor a verifiable reply MUST surface as its own state
+> (e.g. "claimed with an unreadable reply"), never silently as
+> `refunded`.
 - Historical sync: any means of scanning past blocks/transactions works
   (e.g. a REST indexer); the chain remains the source of truth.
 

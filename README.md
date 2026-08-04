@@ -1,16 +1,27 @@
 # Kaskly — Just Ask Me
 
 **Attach KAS to a message. They reply, they get the money. They don't,
-you get every cent back.**
+it comes back to you at the deadline.**
 
 Kaskly is the reference client for **ASK**, an open reply-to-claim
 payment protocol for [Kaspa](https://kaspa.org), built as an extension
 to the [Kasia](https://github.com/K-Kluster/Kasia) encrypted-messaging
 conventions and powered by Kaspa's native covenants (post-Toccata).
 The escrow rules are enforced by the chain itself: only the recipient
-can claim, only with a transaction that carries a reply, and after the
-deadline the refund needs nobody's key — anyone can trigger it, and it
-can only pay the sender.
+can claim, only in a transaction carrying an ASK-labelled payload, and
+after the deadline the refund needs nobody's key — anyone can trigger
+it, and it can only pay the sender.
+
+> **⚠️ Known escrow defects (2026-08-04).** An adversarial review of our
+> own covenant found real problems, one of them proven on testnet: a
+> batched refund can return the sender *less* than they locked (F12);
+> Asks below ~0.105 KAS can become permanently unspendable (F13); and
+> the chain checks only the payload's 15-byte label, not that a genuine
+> reply to *this* Ask is inside (F22). A revised covenant is being
+> designed and will be re-proven on testnet before it ships. Testnet
+> only, so no real money was at risk. Full findings and the on-chain
+> evidence: [PROGRESS.md](./PROGRESS.md) (F12–F23); corrected guarantees:
+> [TRUST.md](./TRUST.md).
 
 - **Protocol spec:** [ASKSPEC.md](./ASKSPEC.md) — self-contained;
   implement an interoperable client from it alone

@@ -136,7 +136,7 @@ export default function ComposePage() {
         <h1 className="text-2xl font-semibold tracking-tight">Ask sent</h1>
         <p className="text-muted text-sm leading-relaxed">
           Your KAS is locked to the message. A reply claims it; if the
-          deadline passes silently, every cent comes back to you.
+          deadline passes silently, it comes back to you.
         </p>
         <div className="flex items-center gap-4">
           <ExplorerLink txid={sentTxid} label="lock transaction" />
@@ -170,7 +170,7 @@ export default function ComposePage() {
         <h1 className="text-2xl font-semibold tracking-tight">Ask someone</h1>
         <p className="text-muted text-sm mt-1">
           Attach KAS to a message. They reply, they get it. They don&apos;t,
-          you get every cent back.
+          it comes back to you.
         </p>
       </div>
 
@@ -291,12 +291,20 @@ export default function ComposePage() {
 
         {/* Honesty line — mirrors TRUST.md; stays high-contrast on glass. */}
         <p className="text-xs text-muted leading-relaxed pt-1 border-t border-white/10">
-          Enforced on-chain: only the recipient can claim, and only with a
-          transaction that carries a reply. After the deadline, the refund
-          needs nobody&apos;s permission and can only pay you back — a reply,
-          or your money back; late replies lose to the refund. No protocol
-          fees, ever. Message text is encrypted; addresses, amount and
-          deadline are public on-chain.
+          Enforced on-chain: only the recipient can claim, and only in a
+          transaction carrying an ASK-labelled payload. After the deadline,
+          the refund needs nobody&apos;s permission and can only pay you —
+          late replies lose to the refund. No protocol fees, ever. Message
+          text is encrypted; addresses, amount and deadline are public
+          on-chain.{" "}
+          <strong className="text-amber-300">
+            Known defects (2026-08-04): a refund can return less than you
+            locked, Asks under ~0.105 KAS can get permanently stuck, and the
+            chain checks only the payload&apos;s label — not that a genuine
+            reply to this Ask is inside.
+          </strong>{" "}
+          See TRUST.md; a corrected escrow rule is being built and re-proven
+          before it ships.
         </p>
       </div>
     </section>
