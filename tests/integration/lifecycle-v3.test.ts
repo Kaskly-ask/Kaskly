@@ -373,6 +373,58 @@ describe("V3 regression: R3 attack set + both lifecycles", () => {
     }
   }, 600_000);
 
+  it("A2: the firehose discovers a V3 Ask, and V3-first does not shadow V2", async () => {
+    // Proves discovery THROUGH THE SCANNER, not by handing the parser an
+    // announcement we already had. The scanner tries V3 then V2, so this
+    // also guards against the V3 branch shadowing in-flight V2 Asks —
+    // which must stay discoverable while the client creates only V3.
+    const { startAskScanner, createAsk } = await import("../../src/lib/ask");
+    const seen: Array<{ kind: string; txid: string; version?: number }> = [];
+    const stop = startAskScanner(rpc, (parsed, txid, version) => {
+      if (parsed) seen.push({ kind: parsed.kind, txid, version });
+    });
+
+    try {
+      // --- a V3 Ask
+      const v3 = await newAsk(LONG_DEADLINE);
+
+      // --- a V2 Ask, created through the UNCHANGED V2 path
+      const v2Deadline = (await currentDaaScore(rpc)) + LONG_DEADLINE;
+      const v2 = await createAsk(rpc, NETWORK_ID, {
+        senderAddress,
+        senderPrivateKeyHex: sender.privateKey,
+        recipientAddress,
+        amount: ASK_AMOUNT,
+        message: "V2 must still be discoverable",
+        deadlineDaa: v2Deadline,
+      });
+
+      const until = Date.now() + 90_000;
+      while (
+        Date.now() < until &&
+        !(
+          seen.some((s) => s.txid === v3.created.lockTxid) &&
+          seen.some((s) => s.txid === v2.lockTxid)
+        )
+      ) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      const v3Hit = seen.find((s) => s.txid === v3.created.lockTxid);
+      const v2Hit = seen.find((s) => s.txid === v2.lockTxid);
+
+      expect(v3Hit, "V3 Ask must be discovered through the firehose").toBeDefined();
+      expect(v3Hit!.kind).toBe("ask");
+      expect(v3Hit!.version, "V3 Ask must be reported as version 2").toBe(2);
+
+      expect(v2Hit, "V2 Ask must STILL be discovered (no shadowing)").toBeDefined();
+      expect(v2Hit!.kind).toBe("ask");
+      expect(v2Hit!.version, "V2 Ask must be reported as version 1").toBe(1);
+    } finally {
+      await stop();
+    }
+  }, 600_000);
+
   it("REFUNDED lifecycle + refund-side attacks, all rejected for V3 reasons", async () => {
     const { created, utxo, deadlineDaa } = await newAsk(SHORT_DEADLINE);
     await waitPastDaa(deadlineDaa);
