@@ -881,6 +881,49 @@ after hours. Testnet only.
 V3; and the F14 client classification fix, which ships with V3 or neither
 is complete.
 
+### ⚠️ TAG `covenant-v3` (35b3549) IS KNOWN-DEFECTIVE — do not treat as current
+
+A second, harder audit against that tag found defects the first campaign
+missed. **`35b3549` ships a V3 claim branch vulnerable to the
+cross-version claim:** V2's claim branch checks only
+`payload[0:15] == "ciph_msg:1:ask:"`, and the V3 header
+`"ciph_msg:1:ask:r2:"` BEGINS with those bytes — so one V3-shaped payload
+satisfied a V2 covenant too, and a recipient holding one V2 and one V3 Ask
+could claim BOTH with a single reply. Fixed after the tag in `bb5c32f`
+(`OpTxInputCount == 1` on the claim branch), chain-proven by spike 13.
+
+The tag is deliberately left in place for audit-trail integrity. **We
+retag ONCE, after the solver and doc corrections land.** Until then, any
+audit package or reviewer pointer must use `main`, not `covenant-v3`.
+
+Second-audit findings and status:
+- **Cross-version claim — FIXED** (`bb5c32f`), spike 13: mixed V2+V3
+  inputs rejected (`53e07c5d…`), V2 alone accepted (`2ae6e85c…`), V3 alone
+  accepted (`6ef24aeb…`), R2-verified, both covenants drained. Accepted
+  trade: claim-side fee subsidy is now permanently foreclosed.
+- **Solver returned its own seed — FIXED.** `solveRefundFee` returned
+  `guess`, so it always returned exactly 100,000 sompi and the "per-Ask"
+  allowance was a constant 400,000. Now descends to the true minimum:
+  **79,600 / allowance 318,400** at every viable amount.
+- **Solver priced the wrong transaction — FIXED.** The sigscript template
+  was hardcoded at 117 bytes (the V2 shape) while V3's real refund
+  sigscript was 169, then 172 after the claim-branch pin. Now a named
+  constant `V3_REFUND_SIGSCRIPT_BYTES`, asserted by unit test against the
+  length derived from the committed golden vector — it had drifted twice,
+  so it must fail loudly rather than be trusted on sight.
+- **Large-amount stranding — REFUTED** (spike 12). A 25 KAS Ask (floor
+  2,499,600,000, above 2^31) refunded successfully (`4396205b…`) while the
+  sub-threshold control also refunded; R2 confirmed 2,499,900,000 sompi
+  returned. The V3 floor arithmetic handles 5-byte operands. No upper
+  bound established beyond 25 KAS.
+- **STILL OPEN:** `amountSompi` is announced but never compared against
+  the funded UTXO in any V3 path (`rebuildCovenantFromAnnouncementV3`
+  returns only an address and has no production caller) — my earlier claim
+  that it closed the §4 funding gap was premature. askId uniqueness rests
+  on sender honesty (ids are public, duplicates unenforced). ASKSPEC still
+  describes V2 throughout. Design §6 skim figures and the §9 gate list
+  (which names a `spike/09` that never existed) are falsified.
+
 ### SESSION PARK — 2026-08-04 (V3 campaign in flight; R3 is the next block)
 
 **Read this first.** Phase 4 is tagged and pushed. Since then the session

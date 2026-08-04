@@ -37,6 +37,22 @@ export const FEE_SOLVE_MAX_ITERS = 12;
  * COVENANT-V3-DESIGN.md §6. */
 export const ALLOWANCE_MARGIN = 4n;
 
+/**
+ * Byte length of the REAL V3 sig-less refund signature script:
+ *   push(<empty selector>) ‖ push(redeemScript)
+ * with the current 169-byte V3 redeem script.
+ *
+ * This was WRONG twice (second audit, finding 2): it was hardcoded at 117
+ * — the V2 shape — while V3's real script was 169, so the solver priced a
+ * transaction 52 bytes smaller than the one actually broadcast. The pin
+ * then grew again to 172 when OpTxInputCount was added to the claim
+ * branch. A constant that has drifted twice must not be trusted on
+ * inspection, so tests/unit/fees-v3.test.ts asserts this equals the length
+ * derived from the committed golden vector's redeem script, and fails
+ * loudly if the script changes again.
+ */
+export const V3_REFUND_SIGSCRIPT_BYTES = 172;
+
 export class FeeSolveRefusal extends Error {
   constructor(
     message: string,
@@ -74,6 +90,7 @@ export function solveRefundFee(params: {
 }): RefundFeeSolution {
   const { networkId, amountSompi, senderAddress, utxoTemplate } = params;
   const trace: string[] = [];
+  const seen = new Set<bigint>();
   let guess = 100_000n;
 
   for (let i = 0; i < FEE_SOLVE_MAX_ITERS; i++) {
@@ -94,7 +111,9 @@ export function solveRefundFee(params: {
     );
     tx.lockTime = 100_000n;
     tx.inputs[0].sequence = 0n;
-    tx.inputs[0].signatureScript = "00".repeat(117); // sig-less refund shape
+    // Must match the sig script the refund builder ACTUALLY emits, or the
+    // solver prices a different transaction than the one broadcast.
+    tx.inputs[0].signatureScript = "00".repeat(V3_REFUND_SIGSCRIPT_BYTES);
 
     const required = calculateTransactionFee(networkId, tx);
     trace.push(`${guess}->${required === undefined ? "none" : required}`);
@@ -106,13 +125,37 @@ export function solveRefundFee(params: {
         trace
       );
     }
-    if (required <= guess) {
+    if (required === guess) {
+      // Exact fixed point: this is the true minimum for its own shape.
       return {
         fee: guess,
         allowance: guess * ALLOWANCE_MARGIN,
         iterations: i + 1,
         trace,
       };
+    }
+    if (required < guess) {
+      // We over-guessed. Paying less enlarges the output, which LOWERS
+      // storage mass, so `required` stays sufficient — keep descending
+      // toward the real minimum instead of returning the guess.
+      // (Second audit, finding 4: the old code returned `guess` here, so
+      // the "solver" always returned its 100,000-sompi starting value and
+      // the per-Ask allowance was a constant 400,000. F21 was ~94% fixed
+      // and the design's skim figures were understated by ~45%.)
+      if (seen.has(required)) {
+        // Two-cycle: return the LARGER of the cycle, which is the value
+        // known to be sufficient. Never return an insufficient fee.
+        const safe = required > guess ? required : guess;
+        return {
+          fee: safe,
+          allowance: safe * ALLOWANCE_MARGIN,
+          iterations: i + 1,
+          trace,
+        };
+      }
+      seen.add(guess);
+      guess = required;
+      continue;
     }
     guess = required;
   }
