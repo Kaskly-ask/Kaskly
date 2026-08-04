@@ -105,11 +105,16 @@ function hexToBytes(hex: string): Uint8Array {
  *   payload[0:18]  == "ciph_msg:1:ask:r2:"   → kind is a V3 reply
  *   payload[18:50] == askId                  → binds THIS Ask
  *   recipient schnorr signature
- * A transaction carries exactly ONE payload, so two covenant UTXOs with
- * different askIds impose contradictory requirements on the same bytes —
- * one reply can never claim two Asks. Input count is deliberately NOT
- * pinned here, preserving the option of a claimer adding their own input
- * to subsidise the fee.
+ * A transaction carries exactly ONE payload, so two V3 covenant UTXOs with
+ * different askIds impose contradictory requirements on the same bytes.
+ *
+ * CORRECTED 2026-08-04 (second audit): that argument holds only AMONG V3
+ * covenants. It does NOT extend to a mixed V2+V3 input set, because V2's
+ * claim branch checks only the 15-byte prefix that the V3 header begins
+ * with. The input count is therefore pinned here too — see the branch
+ * comment below. It also assumes askIds are unique, which nothing
+ * enforces: askIds are public, and a hostile sender can deliberately
+ * collide with a live one (tracked separately).
  *
  * REFUND branch (selector FALSE) — F12 + F13/F21:
  *   exactly ONE input               (kills the batched-refund drain)
@@ -146,7 +151,24 @@ export function buildAskRedeemScriptV3(
     new ScriptBuilder()
       .addOp(Opcodes.OpIf)
       // --- claim branch ------------------------------------------------
-      // Explicit length guard FIRST: makes "a short payload cannot bypass
+      // Exactly ONE input (human decision, 2026-08-04, second audit).
+      // V2's claim branch checks only payload[0:15] == "ciph_msg:1:ask:",
+      // and the V3 header "ciph_msg:1:ask:r2:" BEGINS with those 15 bytes —
+      // so a single V3-shaped payload satisfied a V2 covenant too. A
+      // recipient holding one V2 and one V3 Ask could spend BOTH in one
+      // transaction with one reply, and the V2 sender lost their Ask to a
+      // reply encrypted to someone else. V2 is deployed and immutable, so
+      // the fix has to live here.
+      // TRADE (accepted deliberately): this permanently forecloses
+      // claim-side fee subsidy — a recipient adding their own input to
+      // cover the fee, which is the only thing that rescues an Ask near
+      // the viability floor. Weighed against a live fund-loss path for V2
+      // senders, and chosen knowing the script cannot be upgraded without
+      // changing every address again.
+      .addOp(Opcodes.OpTxInputCount)
+      .addI64(1n)
+      .addOp(Opcodes.OpNumEqualVerify)
+      // Explicit length guard: makes "a short payload cannot bypass
       // the askId comparison" a local, auditable property of this script
       // rather than a claim resting on OpTxPayloadSubstr's out-of-range
       // behaviour, which is only proven at offset 0 (spike 11b Q3).

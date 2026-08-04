@@ -173,6 +173,12 @@ function buildAskRedeemScriptV3({
   const senderSpkBytes = spkToStackBytes(payToAddressScript(senderAddress));
   return new ScriptBuilder()
     .addOp(Opcodes.OpIf)
+    // Claim branch pins ONE input (2026-08-04): a V3 payload also satisfies
+    // V2's 15-byte prefix check, so a mixed V2+V3 input set could be
+    // claimed with one payload. Mirrors src/lib/ask/covenant-v3.ts.
+    .addOp(Opcodes.OpTxInputCount)
+    .addI64(1n)
+    .addOp(Opcodes.OpNumEqualVerify)
     .addOp(Opcodes.OpTxPayloadLen)
     .addI64(BigInt(MIN_CLAIM_PAYLOAD_LEN))
     .addOp(Opcodes.OpGreaterThanOrEqual)
