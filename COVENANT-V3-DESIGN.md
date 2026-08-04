@@ -34,15 +34,20 @@ attempts turned out to be my own fee bug rather than opcode behaviour.
 | Q | Question | Verdict |
 |---|---|---|
 | Control | Does the harness work? | **PASS** — OpCheckSig, sigscript construction and mass-derived fee solving all sound |
-| Q3 | `OpTxPayloadSubstr` on a short payload | **FAIL-CLOSED, confirmed.** Self-identifying error: `substring [0:32] is out of bounds for string of length 2`. In-bounds extraction also works (Q2's script ran past it). **This is the M1-gating result.** |
+| Q3 | `OpTxPayloadSubstr` on a short payload | **FAIL-CLOSED at `[0:32]`** — self-identifying error `substring [0:32] is out of bounds for string of length 2`; in-bounds extraction also works (Q2's script ran past it). **Scope limit:** this tested offset 0 only. M1 reads `[17:49]`, so this does NOT establish fail-closed at M1's real offset — see §2's explicit length guard and the required Q3b probe. |
 | Q4 | Does the F12 floor arithmetic compute *and constrain*? | **CONFIRMED.** Below-floor spend rejected, above-floor accepted (`27f38aebd809b1b424c071726d00afbb94b48808a3a60c7f5578ed49841dacc1`). `OpTxInputAmount` returns usable sompi, `OpTxInputIndex` works in arithmetic position, `OpSub` handles the magnitudes. |
 | Q1 | Do introspection opcodes pop an input index? | **Corroborated indirectly.** Spike 11's self-identifying `Number too big: numeric value encoded as [32 bytes] exceeds the max allowed of 8` showed `OpOutpointTxId` consuming a stack value as its index; Q4 then proved the same `OpTxInputIndex`-first convention works for `OpTxInputAmount`. Not confirmed against rusty-kaspa source. |
 | Q2 | `OpOutpointTxId` byte order | **UNRESOLVED.** Both orders rejected with `script ran, but verification failed` *despite* the passing control — so the fault is in the outpoint comparison, not the harness. |
 
-**Consequence: M1 is fully unblocked; M2 is not available.** M1 needs only
-`OpTxPayloadSubstr` at new offsets (Q3 ✔) and the F12 floor arithmetic
-(Q4 ✔). M2 needs Q2, which remains open. This retires the gate for the
-chosen design without retiring the open question.
+**Consequence: M1 is unblocked for authoring, with one probe still owed;
+M2 is not available.** M1 needs the F12 floor arithmetic (Q4 ✔) and
+`OpTxPayloadSubstr` at offsets 0 and 17. Offset 0 is covered; **offset 17
+boundary behaviour still needs Q3b** (payload lengths 16 / 48 / 49), which
+must pass before the V3 script is considered proven — though with the
+explicit `OpTxPayloadLen` guard in §2, Q3b is about avoiding
+false-rejection of valid claims rather than about a bypass. M2 needs Q2,
+which remains open. This retires the *authoring* gate for the chosen
+design without retiring either open question.
 
 ---
 
@@ -131,15 +136,42 @@ claim with a valid header, correct `askId`, and a garbage body remains
 chain-valid. That residue is unavoidable at script level — F14's client
 fix is **required alongside V3**, not optional.
 
-**Payload length handling — resolved by Q3.** I previously flagged that
-M1's script "MUST add an explicit length check before the askId compare",
-on the defensive assumption that a short payload might slip through.
-Spike 11b settles it: `OpTxPayloadSubstr` **fails closed**, rejecting with
-`substring [0:32] is out of bounds for string of length 2`. A truncated
-payload therefore cannot bypass the comparison, and no separate length
-guard is required for correctness. Keeping one would be belt-and-braces
-only; the V3 script stays smaller without it, which matters for the audit
-surface that drove the M1 choice.
+**Payload length handling — explicit check REQUIRED [HUMAN].** Q3 proved
+`OpTxPayloadSubstr` fails closed for `[0:32]` on a 2-byte payload
+(`substring [0:32] is out of bounds for string of length 2`). I briefly
+concluded from that we could drop the explicit length guard. **That was an
+overgeneralisation and is retracted:** M1 extracts the askId at
+`[17:49]`, and Q3 tested neither that offset nor the interesting lengths.
+Fail-closed at offset 0 is not evidence of fail-closed at offset 17.
+
+The V3 claim branch therefore opens with an explicit guard —
+`OpTxPayloadLen` (196, present in the pinned SDK):
+
+```
+OpIf
+  OpTxPayloadLen, 49, OpGreaterThanOrEqual, OpVerify      # explicit length guard
+  0, 17, OpTxPayloadSubstr, <"ciph_msg:1:ask:r:">, OpEqualVerify
+  17, 49, OpTxPayloadSubstr, <askId>, OpEqualVerify
+  <recipientKey>, OpCheckSig
+```
+
+Rationale [HUMAN], and I agree: four opcodes make "a short payload cannot
+bypass the askId comparison" a **local, auditable property of this
+script**, instead of a claim resting on opcode behaviour an auditor must
+independently re-verify. This is the F22 claim branch — a Critical — and
+is the wrong place to economise on a security check. The audit-surface
+argument that chose M1 over M2 actually *supports* the guard: locality is
+what makes M1 easy to audit.
+
+**Still required regardless: probe Q3b for the real offsets.** The guard
+protects against the security direction (short payload bypassing the
+check). It does not tell us the script behaves correctly at the *in-bounds*
+boundary, and getting that wrong strands funds in the opposite direction —
+legitimate claims permanently rejected. Q3b must cover payload lengths
+**48** (one short: must reject), **49** (exactly enough: must ACCEPT and
+claim successfully), and **16** (shorter than even the header). A V3 script
+that rejects a valid 49-byte payload would be an F13-class bug wearing an
+F22 fix.
 
 ### FALLBACK: Mechanism M2 — `OpOutpointTxId` binding (documented, not chosen)
 
@@ -310,7 +342,13 @@ while creating only V3; migration note required in ASKSPEC.
 
 ## 9. Re-proof gate before any re-tag
 
-1. Spike 11 (opcode semantics) reports a verdict — **gate on authoring**.
+1. Spikes 11/11b (opcode semantics) report verdicts — **gate on
+   authoring**. DONE: control PASS, Q4 CONFIRMED, Q3 partial (offset 0),
+   Q2 unresolved (M2 only).
+1b. **Spike 11c / Q3b** — `OpTxPayloadSubstr` at `[17:49]` with payload
+   lengths 16, 48 (must reject) and 49 (must ACCEPT), against a script
+   carrying the `OpTxPayloadLen` guard. Guards against the opposite
+   stranding bug: valid claims rejected.
 2. Probe 07 flips CONFIRMED → REFUTED.
 3. New probe 08 rejects both cross-Ask variants, passes both controls.
 4. New probes 09 (incl. the 0.1 KAS refusal assertion) and 10 pass.
