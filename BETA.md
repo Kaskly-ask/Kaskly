@@ -52,6 +52,28 @@
   replies, tiny amounts with giant replies, double-click Send… if you
   find something embarrassing, that's exactly what the thread is for.
 
+## Install it as an app (optional)
+
+Kaskly is a PWA — you can put it on your home screen and it opens
+full-screen and branded, with the heavy assets cached for fast launches.
+
+- **Android (Chrome):** tap the "Install Kaskly as an app" link in the
+  footer (or the browser's Install option in the ⋮ menu).
+- **iOS (Safari):** Share → **Add to Home Screen** (Apple offers no
+  install prompt — it's manual).
+
+What it does NOT do, honestly:
+- **No push notifications** — installed or not, on any platform (and
+  none exist in-app yet either): keep the app open to see new Asks
+  arrive live.
+- **iOS keeps the installed app's storage SEPARATE from Safari.** A
+  wallet created in Safari will NOT appear inside the installed app —
+  create your wallet inside whichever one you'll actually use (or move
+  it with the private key). Android shares storage with Chrome, so this
+  surprise is iOS-only.
+- Chain data is never cached — money state is always fetched live; if
+  you're offline, the shell opens but statuses need a connection.
+
 ## Known limitations (honest list, from TRUST.md)
 
 - **Keep the tab open to receive.** Discovery is live (block firehose);

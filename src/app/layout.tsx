@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/lib/wallet";
@@ -7,6 +7,7 @@ import { ActivityProvider } from "@/lib/activity";
 import { Header } from "@/components/header";
 import { SheenController } from "@/components/sheen-controller";
 import { ConnectionBanner } from "@/components/connection-banner";
+import { PwaSetup } from "@/components/pwa-setup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,6 +23,19 @@ export const metadata: Metadata = {
   title: "Kaskly — Just Ask Me",
   description:
     "Attach KAS to a message. A reply claims it; silence past the deadline refunds you. Testnet reference client for the ASK protocol.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Kaskly",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({
@@ -63,6 +77,7 @@ export default function RootLayout({
                 — verify every claim: the spec, the client, and the
                 on-chain evidence (ISC).
               </p>
+              <PwaSetup />
               {process.env.NEXT_PUBLIC_FEEDBACK_URL && (
                 <p>
                   Beta:{" "}
