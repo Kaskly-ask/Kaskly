@@ -61,7 +61,7 @@ export function Header() {
     href === "/inbox" ? unreadInbox : href === "/sent" ? unreadSent : 0;
 
   return (
-    <header className="sticky top-0 z-40 w-full glass border-b border-white/10 mb-8">
+    <header className="sticky top-0 z-40 w-full glass-deep border-b border-white/10 mb-8">
       <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-5">
         {/* Wordmark placeholder — final brand assets pending (public/brand/) */}
         <Link href="/" className="flex items-baseline gap-2 shrink-0">

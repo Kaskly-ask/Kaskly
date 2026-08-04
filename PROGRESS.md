@@ -445,6 +445,25 @@ high-contrast — the TESTNET badge sits on a SOLID background chip, never
 on translucency, and the compose honesty line was bumped a contrast
 step. §5's calm voice kept — glass, not disco.
 
+**Glass iteration 2 (2026-08-04, after human review "not landing"):**
+root cause confirmed — nothing visible behind the blur. Fixes: ambient
+scene made real (four asymmetric teal glows up to 0.28 alpha, one placed
+BEHIND the card column; drifting covenant-hex texture layer built from
+the actual escrow bytes — `63 00 0f b8` + `ciph_msg:1:ask:` + `64 b0` —
+as an SVG tile at 7% opacity, 160s drift, reduced-motion aware); glass
+recipe strengthened (inner light gradient white/11→white/4, blur 18px +
+saturate(1.4), top-edge highlight white/18, soft drop shadow); header
+split to `.glass-deep` (darker tint, MORE translucent, blur 20px).
+Verified with in-browser screenshots (claude-in-chrome): backdrop-filter
+IS applying — content visibly smears under the sticky header on scroll;
+cards read frosted over the glow/texture. Also fixed in review: Earned
+flashed 0 on reload while REST derivation settled — now seeded from the
+last chain-derived value per address (localStorage, display-only; the
+chain remains the only writer). Known dev-only console warning: a
+hydration mismatch caused by a browser EXTENSION injecting a
+`__processed_*` attribute into <body> (named as a cause in React's own
+message) — not our code, absent in clean profiles/production.
+
 **F10 (gate observation, fixed in this pass) — status/timer precedence:**
 countdowns kept ticking on answered/refunded cards, and expiring timers
 overwrote terminal states with deadline-passed styling. Fix: terminal

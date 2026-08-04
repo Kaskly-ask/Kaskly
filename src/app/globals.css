@@ -40,29 +40,68 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Ambient teal glow — gives the backdrop blur depth to catch. Fixed and
-   paint-only (no repaint on scroll, pointer-events never involved). */
+/* Ambient scene — the backdrop the glass smears. Two fixed paint-only
+   layers: strong asymmetric teal glows below, a faint drifting texture of
+   the ACTUAL covenant bytes above them (OpIf 0x63 … `ciph_msg:1:ask:` …
+   OpCheckLockTimeVerify 0xb0 — the escrow script itself, as set dressing). */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: -2;
   pointer-events: none;
   background:
-    radial-gradient(640px 420px at 82% -8%, rgba(73, 234, 203, 0.09), transparent 70%),
-    radial-gradient(720px 520px at -12% 108%, rgba(73, 234, 203, 0.055), transparent 70%);
+    radial-gradient(52rem 36rem at 84% -12%, rgba(73, 234, 203, 0.28), transparent 65%),
+    radial-gradient(46rem 36rem at 34% 30%, rgba(73, 234, 203, 0.12), transparent 60%),
+    radial-gradient(38rem 30rem at -10% 22%, rgba(46, 163, 142, 0.19), transparent 62%),
+    radial-gradient(60rem 42rem at 58% 115%, rgba(73, 234, 203, 0.15), transparent 66%);
 }
 
-/* Frosted glass surface: translucent fill + blur + 1px top-edge highlight.
-   Border is composed via utilities at the call site (border-white/10) so
-   edges can vary per surface. Performance budget: .glass appears on the
-   header and on cards only — never nested, never on scrolling lists'
-   wrappers. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -25% -15%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='560'%20height='360'%3E%3Cg%20font-family='ui-monospace,monospace'%20font-size='13'%20fill='%2349eacb'%3E%3Ctext%20x='12'%20y='30'%3E63%2000%200f%20b8%2063%2069%2070%2068%205f%206d%2073%2067%3C/text%3E%3Ctext%20x='210'%20y='96'%3E3a%2031%203a%2061%2073%206b%203a%2088%2020%20ac%3C/text%3E%3Ctext%20x='40'%20y='168'%3E64%20b0%20c2%2051%209c%2000%20c3%2088%3C/text%3E%3Ctext%20x='300'%20y='238'%3E00%20c4%20a2%2068%2063%2069%2070%2068%3C/text%3E%3Ctext%20x='120'%20y='318'%3E5f%206d%2073%2067%203a%2031%203a%2061%2073%206b%3C/text%3E%3C/g%3E%3C/svg%3E");
+  background-size: 560px 360px;
+  animation: hex-drift 160s linear infinite alternate;
+}
+
+@keyframes hex-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-90px, -70px, 0);
+  }
+}
+
+/* Frosted glass surfaces. Cards: brighter top-edge highlight, inner light
+   gradient (top-to-bottom), saturating blur so the teal glow warms through.
+   Header (.glass-deep): darker tint but MORE translucent + stronger blur,
+   so scrolling content visibly smears beneath it. Border is composed via
+   utilities at the call site. Performance budget: glass appears on the
+   header and on cards only — never nested. */
 .glass {
-  background: rgba(255, 255, 255, 0.05);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.11),
+    rgba(255, 255, 255, 0.04)
+  );
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.glass-deep {
+  background: rgba(10, 10, 12, 0.42);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 /* Amounts are always tabular figures (brief §5). */
@@ -118,6 +157,9 @@ body::before {
   .animate-card-in,
   .animate-fade-in,
   .animate-tick-up {
+    animation: none;
+  }
+  body::after {
     animation: none;
   }
 }

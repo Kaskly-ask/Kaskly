@@ -319,9 +319,32 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     [asks, address]
   );
 
+  // Chain-derived Earned total. Display nuance: derivation takes a few
+  // seconds after a reload (REST lookups), and a proof-of-earnings surface
+  // must not flash 0 in the meantime — so the last chain-derived value is
+  // kept per-address in localStorage and shown until fresh derivation
+  // replaces it. The chain remains the only WRITER of this value.
+  const [seedEarned, setSeedEarned] = useState<bigint>(0n);
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      try {
+        const v = window.localStorage.getItem(`kaskly.earned.v1.${address}`);
+        if (!cancelled && v) setSeedEarned(BigInt(v));
+      } catch {
+        /* corrupted seed — chain derivation will supply it */
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [address]);
+
   const earnedSompi = useMemo(() => {
     if (!address) return 0n;
     let sum = 0n;
+    let anyDerived = false;
     for (const a of asks) {
       if (
         a.recipientAddress === address &&
@@ -330,10 +353,19 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
         a.claimNetSompi
       ) {
         sum += BigInt(a.claimNetSompi);
+        anyDerived = true;
       }
     }
-    return sum;
-  }, [asks, address]);
+    return anyDerived || sum > seedEarned ? sum : seedEarned;
+  }, [asks, address, seedEarned]);
+
+  useEffect(() => {
+    if (!address || earnedSompi === 0n) return;
+    window.localStorage.setItem(
+      `kaskly.earned.v1.${address}`,
+      earnedSompi.toString()
+    );
+  }, [address, earnedSompi]);
 
   // Background-tab awareness: unread count in the document title.
   useEffect(() => {
