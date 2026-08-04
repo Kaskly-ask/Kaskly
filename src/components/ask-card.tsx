@@ -4,8 +4,9 @@
 // through React text nodes only (XSS-inert by construction — never
 // dangerouslySetInnerHTML).
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { DAA_PER_SECOND, explorerTxUrl, formatKas, shortAddress } from "@/lib/config";
+import { DAA_PER_SECOND, explorerTxUrl, formatKas } from "@/lib/config";
 import type { AskStatus } from "@/lib/ask-record";
+import { ContactName } from "./contact-name";
 
 /** Long text collapses to ~3 lines with an expander (F9: one huge card
  * must not destroy list scannability). Heuristic trigger — CSS clamps the
@@ -204,6 +205,7 @@ export function AskCard({
   amountSompi,
   counterpartyLabel,
   counterpartyAddress,
+  counterpartyEditable = true,
   deadline,
   daaScore,
   status,
@@ -217,6 +219,8 @@ export function AskCard({
   amountSompi: string;
   counterpartyLabel: string;
   counterpartyAddress: string;
+  /** Landing-page mock cards disable the naming affordance. */
+  counterpartyEditable?: boolean;
   deadline: string;
   daaScore: bigint | null;
   status: AskStatus;
@@ -256,11 +260,12 @@ export function AskCard({
         ) : (
           <Countdown deadline={deadline} daaScore={daaScore} />
         )}
-        <span
-          className="text-xs text-faint font-mono"
-          title={counterpartyAddress}
-        >
-          {counterpartyLabel} {shortAddress(counterpartyAddress)}
+        <span className="text-xs text-faint">
+          {counterpartyLabel}{" "}
+          <ContactName
+            address={counterpartyAddress}
+            editable={counterpartyEditable}
+          />
         </span>
       </div>
       {children}

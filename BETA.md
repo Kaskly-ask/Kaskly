@@ -58,6 +58,10 @@
   there are no push notifications yet. Asks sent while you're offline
   are found when the sender's client or a rebuild reaches them — but
   the live pop needs the tab.
+- **Contact names are stored in this browser only, like your keys.** You
+  can name any address (tap the ✎ next to it) — the name is private to
+  you, never transmitted, and the real address always stays visible
+  beside it.
 - **Your own sent text is stored only in your browser.** On-chain it's
   encrypted TO THE RECIPIENT — if you clear the browser, the money
   flows are untouched but you can't re-read your own words.

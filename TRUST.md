@@ -73,6 +73,9 @@ app adds, honestly:
   it shows is re-derived from the chain, and a "rebuild from chain" action
   (plus an automated test) proves the whole cache can be deleted and
   reconstructed from public chain data alone.
+- **Contact names are yours alone.** Naming an address stores the label
+  in your browser only — never sent anywhere, and never a substitute for
+  the address itself, which stays visible beside every name.
 - **Your own words are kept only on your device.** On-chain, your message
   is encrypted to the recipient (and their reply to you) — so the app
   keeps YOUR copy of what YOU wrote in your browser's local storage. If

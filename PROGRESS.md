@@ -118,6 +118,25 @@ clientWidth on every route (zero overflow), including with the wallet
 panel OPEN and the share preview rendered at 390px. Deployed for the
 human's real-phone confirmation.
 
+### Local contacts / wallet naming (pre-beta QoL, human-promoted from
+real usage, 2026-08-05)
+
+Full scope shipped (nothing ballooned): (1) browser-private address→name
+map (`kaskly.contacts.v1`, useSyncExternalStore-backed so every surface
+updates live; same privacy model as keys — never transmitted, no
+protocol change); (2) inline naming everywhere addresses render — quiet
+✎ on inbox/sent cards and under the composer recipient; feels like
+naming a chat (inline input, Enter saves, empty deletes); (3) display:
+name leads, truncated address stays visible beside it in muted mono —
+NEVER hidden (payments app, identity stays verifiable); landing mock
+card exempted from the affordance; (4) contacts list in the wallet
+panel with inline edit, delete, and an "ask →" prefilled-composer
+shortcut; (5) composer bonus via native datalist — typing matches saved
+names, picking fills the address; (6) BETA.md + TRUST.md notes
+(browser-only, like keys). Verified end-to-end on the prod build
+(scripted): card ✎ → name saved → renders with address → appears in
+composer datalist + panel list with shortcut — 7/7 assertions green.
+
 ### B6 — stale wallet panel across navigation, all viewports (human,
 real-device + desktop, 2026-08-05; FIXED + verified both)
 

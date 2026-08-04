@@ -9,6 +9,10 @@ import { useChain } from "@/lib/chain";
 import { sendAsk } from "@/lib/asks-client";
 import { isKnsName, resolveKns } from "@/lib/kns";
 import { setNote } from "@/lib/local-notes";
+import { useContacts } from "@/lib/contacts";
+import { ContactName } from "@/components/contact-name";
+
+const ADDRESS_SHAPE = /^[a-z]+:[a-z0-9]{8,120}$/;
 import {
   DAA_PER_SECOND,
   MIN_DEADLINE_SECONDS,
@@ -52,6 +56,7 @@ if (SOAK_FLOOR_ACTIVE && !DEADLINE_CHOICES.some((c) => c.seconds === MIN_DEADLIN
 export default function ComposePage() {
   const { wallet, status: walletStatus } = useWallet();
   const { getRpc } = useChain();
+  const contacts = useContacts();
   const [recipient, setRecipient] = useState("");
   const [message, setMessage] = useState("");
   const [amount, setAmount] = useState("");
@@ -182,8 +187,22 @@ export default function ComposePage() {
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
             placeholder="kaspatest:… or a .kas name (like kaskly.kas)"
+            list="kaskly-contacts"
             className="w-full bg-card-raised border border-border rounded-md px-3 py-2 font-mono text-sm focus:border-teal/50 focus:outline-none"
           />
+          {/* Saved names match as you type; picking one fills the address. */}
+          <datalist id="kaskly-contacts">
+            {Object.entries(contacts).map(([addr, name]) => (
+              <option key={addr} value={addr}>
+                {name}
+              </option>
+            ))}
+          </datalist>
+          {ADDRESS_SHAPE.test(recipient.trim()) && (
+            <span className="text-xs text-faint block">
+              sending to <ContactName address={recipient.trim()} />
+            </span>
+          )}
         </label>
 
         <label className="block space-y-1.5">

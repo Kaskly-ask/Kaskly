@@ -52,6 +52,7 @@ export default function LandingPage() {
             amountSompi="2500000000"
             counterpartyLabel="from"
             counterpartyAddress="kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6"
+            counterpartyEditable={false}
             deadline="6012000"
             daaScore={0n}
             status="open"

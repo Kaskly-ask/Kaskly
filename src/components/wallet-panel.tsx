@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { PRIVATE_KEY_RE, sanitizeKeyInput, useWallet } from "@/lib/wallet";
 import { ShareAsk } from "./share-ask";
+import { ContactsList } from "./contacts-list";
 import { useChain } from "@/lib/chain";
 import { formatKas } from "@/lib/config";
 
@@ -94,6 +95,7 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
               </span>
             </div>
             <ShareAsk address={wallet.address} />
+            <ContactsList />
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => {
