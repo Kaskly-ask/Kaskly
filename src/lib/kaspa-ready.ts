@@ -13,9 +13,29 @@ export function ensureKaspaReady(): Promise<void> {
     ready = (async () => {
       const mod = (await import("kaspa-wasm")) as unknown as {
         default?: (opts: { module_or_path: string }) => Promise<unknown>;
-      };
+      } & Record<string, unknown>;
       if (typeof mod.default === "function") {
         await mod.default({ module_or_path: "/kaspa_bg.wasm" });
+        // Production-minification guard (beta blocker B1, 2026-08-05):
+        // the wasm side casts JS objects by READING constructor.name and
+        // string-comparing it (observed live: "object constructor `ed`
+        // does not match expected class `Resolver`"). Minifiers rename
+        // classes, so restore every exported class's runtime name to its
+        // export name — the export keys survive minification because the
+        // namespace is consumed by name across module boundaries.
+        for (const [exportName, value] of Object.entries(mod)) {
+          if (
+            typeof value === "function" &&
+            /^[A-Z]/.test(exportName) &&
+            value.name !== exportName
+          ) {
+            try {
+              Object.defineProperty(value, "name", { value: exportName });
+            } catch {
+              /* non-configurable — nothing we can do for this one */
+            }
+          }
+        }
       }
     })();
   }

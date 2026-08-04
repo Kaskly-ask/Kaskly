@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useWallet } from "@/lib/wallet";
+import { PRIVATE_KEY_RE, sanitizeKeyInput, useWallet } from "@/lib/wallet";
 import { useChain } from "@/lib/chain";
 import { formatKas } from "@/lib/config";
 
@@ -10,6 +10,10 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
   const [importValue, setImportValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Live format check (beta finding): quotes/whitespace from JSON pastes
+  // are stripped automatically; Import enables only on a plausible key.
+  const cleanedKey = sanitizeKeyInput(importValue);
+  const keyLooksValid = PRIVATE_KEY_RE.test(cleanedKey);
   const [balance, setBalance] = useState<bigint | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -117,13 +121,20 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
                 className="flex-1 min-w-48 bg-card-raised border border-border rounded-md px-2 py-1.5 font-mono text-xs"
               />
               <button
-                disabled={busy || !importValue.trim()}
+                disabled={busy || !keyLooksValid}
                 onClick={() => run(() => importKey(importValue))}
                 className="px-3 py-1.5 rounded-md border border-border text-xs text-muted hover:text-foreground disabled:opacity-50"
               >
                 Import
               </button>
             </div>
+            {importValue.trim() && !keyLooksValid && (
+              <p className="text-warn text-xs">
+                A private key is 64 hex characters — this looks like{" "}
+                {cleanedKey.length} {/[^0-9a-fA-F]/.test(cleanedKey) ? "with non-hex characters" : ""}
+                . Quotes and spaces are removed automatically.
+              </p>
+            )}
             {error && <p className="text-danger text-xs">{error}</p>}
           </>
         )}

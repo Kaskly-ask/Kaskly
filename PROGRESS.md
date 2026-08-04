@@ -8,6 +8,32 @@
 public-launch material (PITCH.md — already written) is SEQUENCED AFTER
 beta feedback.**
 
+### Deploy findings (kaskly.onrender.com, 2026-08-05) — both fixed
+
+- **B1 — BLOCKER: production minification broke SDK class checks.**
+  Deployed site showed the connection banner with "object constructor
+  `ed` does not match expected class `Resolver`". Root cause: the WASM
+  side casts JS objects by reading `constructor.name` and comparing
+  STRINGS (the JS glue's `_assertClass` uses instanceof — this check
+  lives in the wasm binary and is not configurable); production
+  minification renames classes (dev doesn't, hence the split). Fix:
+  after wasm init, `ensureKaspaReady` restores every exported class's
+  runtime `.name` from its export key (`Object.defineProperty` — export
+  names survive minification). Verified on a LOCAL production build
+  (`npm run build && npm start`, per the human's debugging instruction)
+  with the real wallet: no banner, statuses settle, balance loads.
+- **B2 — key-import UX.** Raw pastes from JSON files (quotes, commas,
+  whitespace, 0x) reached `new PrivateKey()` and surfaced "Secp256k1 ->
+  malformed or out-of-range secret key" — env-agnostic input problem,
+  not a deploy problem (wallet generation + signature proof confirmed
+  working in prod by the human). Fix: `sanitizeKeyInput` strips
+  decoration (never key material), live format check disables Import
+  until 64-hex, calm inline hint shows the cleaned length and notes
+  quotes/spaces are auto-removed, and the library error is replaced by
+  a friendly message. Verified in the prod build end-to-end: garbage
+  shows the hint with Import disabled; the funded key pasted as
+  `  "<key>",  ` imports successfully.
+
 ### Phase 4 scope amendment — Discord testnet beta (human, 2026-08-04)
 
 Beta with the Kaspa Discord community BEFORE public launch; the app

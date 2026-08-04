@@ -28,6 +28,20 @@ export interface WalletState {
 
 const STORAGE_KEY = "kaskly.wallet.v1";
 
+/** Normalize a pasted private key: keys arrive from JSON files and docs
+ * wrapped in quotes, whitespace, commas, or an 0x prefix (beta finding:
+ * raw paste produced "Secp256k1 -> malformed or out-of-range secret
+ * key"). Strips decoration only — never alters key material. */
+export function sanitizeKeyInput(input: string): string {
+  return input
+    .trim()
+    .replace(/^["'`,\s]+|["'`,\s]+$/g, "")
+    .replace(/^0x/i, "")
+    .trim();
+}
+
+export const PRIVATE_KEY_RE = /^[0-9a-fA-F]{64}$/;
+
 interface WalletContextValue {
   wallet: WalletState | null;
   /** "loading" while restoring a stored key on first mount. */
@@ -101,7 +115,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [connectWith]);
 
   const importKey = useCallback(
-    (privateKeyHex: string) => connectWith(privateKeyHex.trim()),
+    (privateKeyHex: string) => {
+      const cleaned = sanitizeKeyInput(privateKeyHex);
+      if (!PRIVATE_KEY_RE.test(cleaned)) {
+        return Promise.reject(
+          new Error(
+            `A private key is 64 hex characters — got ${cleaned.length}${
+              /[^0-9a-fA-F]/.test(cleaned) ? " (with non-hex characters)" : ""
+            }. Copy just the key value, without quotes.`
+          )
+        );
+      }
+      return connectWith(cleaned);
+    },
     [connectWith]
   );
 
