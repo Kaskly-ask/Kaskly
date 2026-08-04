@@ -144,24 +144,46 @@ below): lifecycle from automated tests, three terminal states with txids,
 R2 dual verification, R3 attack set green, ASKSPEC v0.1 consistent with
 code, TRUST.md current, tagged `phase-2` (commit `86d5cc3`).
 
-### Notes for the next session (R7 ritual)
+### Notes for the next session (R7 ritual) — updated at session park, 2026-08-04
 
-1. Read this file + TRACE.md, then run `npm test` (16 unit tests, fast) —
-   confirm green before new work. `npm run test:integration` re-proves the
-   TN10 lifecycle (~2 min, costs ~0.02 TKAS in fees per run).
-2. **`spike/.keys.json` is gitignored and holds the FUNDED testnet keys**
-   (sender `kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6`,
-   balance ≈ 1,990 TKAS after all spikes/tests). Do not delete it; the
-   integration suite reads it.
-3. Node.js v24.18.1 is installed system-wide; a fresh terminal has it on
-   PATH (this session needed explicit `$env:ProgramFiles\nodejs` prefixes
-   only because it predated the install).
-4. Networking quirks from this machine: public TN10 wRPC nodes are flaky —
-   `connectRpc` retries resolver picks (optionally pin via
-   `KASPA_WRPC_URL`); REST `api-tn10.kaspa.org` intermittently ECONNRESETs
-   (tests already retry / use UTXO-set verification).
-5. Vendored SDK: only `vendor/kaspa-wasm32-sdk/nodejs/kaspa` is committed;
-   re-extract the zip (SHA256 in ground truth below) for docs/examples.
+**WHERE WE STOPPED:** Phase 4 is fully built (pitch package + beta
+scope); the session parked awaiting HUMAN-LED steps. Nothing is in
+flight; working tree clean; everything on origin/main.
+
+**What happens next (in order, mostly human):**
+1. Human deploys per **DEPLOY.md** (Render/Railway node host + disk),
+   creates the Discord beta thread, sets `NEXT_PUBLIC_FEEDBACK_URL`
+   before first build, does the Cloudflare DNS steps for kaskly.app.
+2. Human runs the two Phase 4 gate legs: **demo dry-run** (PITCH.md
+   script — works even better on the live URL) and **fresh clone via
+   README only** (the host build largely covers this).
+3. On acceptance: flip remaining TRACE rows (C5→verified, P1 stranger
+   check, Earned/F10 rows), tag `phase-4`, push with tags (standing
+   instruction: push at every phase tag).
+4. Then the Discord beta runs; **PITCH.md / public launch is SEQUENCED
+   AFTER beta feedback** (human instruction). Repo going public is a
+   human decision before the pitch goes out (PITCH links the repo).
+
+**Session ritual:** read this file + TRACE.md; `npm test` (**26 unit
+tests**, sub-second) must be green before new work. Dev server was
+stopped at park — restart with `npm run dev` (localhost:3000).
+`npm run test:integration` re-proves the TN10 lifecycle+attacks+fees
++rebuild (~3 min, costs a little TKAS).
+
+**Standing facts:**
+- **`spike/.keys.json` is gitignored and holds the FUNDED testnet keys**
+  (sender `kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6`,
+  balance ≈ 1,985+ TKAS; recipient holds the claimed amounts). Do not
+  delete; the integration suite reads it.
+- Node.js v24.18.1 system-wide (fresh terminals may still need
+  `$env:ProgramFiles\nodejs` on PATH in tool shells).
+- Public TN10 wRPC nodes are flaky (connectRpc retries; pin via
+  KASPA_WRPC_URL if needed); REST api-tn10.kaspa.org intermittently
+  ECONNRESETs from this machine (retry helpers everywhere).
+- Vendored SDK: `nodejs/kaspa` AND `web/kaspa` are committed (two
+  file: pins); re-extract the release zip for docs/examples.
+- Origin: github.com/Kaskly-ask/Kaskly (private). GCM credentials
+  stored — non-interactive pushes work.
 
 ### Phase 3 checklist (per brief §9)
 
