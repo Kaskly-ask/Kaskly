@@ -491,6 +491,16 @@ gradient + diagonal sheen. Verified by screenshot+zoom against the
 locked test ("texture readable through the card AND the rim visibly
 bends it") — passing to my eye; human judges against the reference.
 
+**Glass iteration 5 — merged verdict (human, 2026-08-04):** iteration 4's
+brightness lift washed out the backdrop (panels read MORE opaque). Merge:
+body restored to near-transparent (fill white/3.5→white/2, blur stepped
+2px→1px after side-by-side comparison, lift capped at brightness(1.05));
+ALL iteration-4 edge work kept (refraction ring, 1px stroke, corner
+glints, teal fringe). Verified by same-region zoom comparison: hex
+texture reads through the card at iteration-3 clarity with the new edges.
+Legibility now rides on content contrast + the solid inner panels, per
+the human's rule.
+
 **F10 (gate observation, fixed in this pass) — status/timer precedence:**
 countdowns kept ticking on answered/refunded cards, and expiring timers
 overwrote terminal states with deadline-passed styling. Fix: terminal
