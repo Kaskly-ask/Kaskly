@@ -176,6 +176,47 @@ function buildSpendSignatureScript(redeemScript, signatureHex, claimBranch) {
   return b.drain();
 }
 
+// ---------------------------------------------------------------------
+// Mass-derived fee solving (F13/F21). SHARED so the fee/mass bug that
+// voided spike 11's attempt 1 cannot live in two places.
+//
+// The required fee depends on the output value (KIP-9 storage mass scales
+// INVERSELY with it), and the output value depends on the fee — so this is
+// a fixed point, not a formula. HARD RULE (V3 design, human-approved):
+// non-convergence MUST refuse the amount. Never fall back to the last
+// iterate: that produces an unbroadcastable transaction and strands funds.
+//
+// PARITY REQUIREMENT: the V3 client implements the same algorithm in
+// TypeScript. It cannot literally import this CJS helper, so the two MUST
+// be kept in step by a shared golden-vector test (amount -> solved fee)
+// asserted on both sides. Recorded in COVENANT-V3-DESIGN.md.
+const FEE_SOLVE_MAX_ITERS = 12;
+
+/** Solve the fee for a single-input spend paying (inputAmount - fee) to
+ * one destination. `buildTx(fee)` must return a fully-formed Transaction
+ * (signature script included) for the given fee.
+ * Returns { fee } or throws — throwing IS the refusal. */
+function solveSpendFee({ networkId, inputAmount, buildTx }) {
+  let guess = 100000n;
+  const trace = [];
+  for (let i = 0; i < FEE_SOLVE_MAX_ITERS; i++) {
+    if (guess >= inputAmount) {
+      throw new Error(`fee solve refused: fee ${guess} >= input ${inputAmount} (amount too small)`);
+    }
+    const tx = buildTx(guess);
+    const required = kaspa.calculateTransactionFee(networkId, tx);
+    trace.push(`${guess}->${required === undefined ? "none" : required}`);
+    if (required === undefined) {
+      throw new Error(`fee solve refused: no valid fee exists (mass over limit) [${trace.join(" ")}]`);
+    }
+    if (required <= guess) return { fee: guess, iters: i + 1, trace };
+    guess = required;
+  }
+  throw new Error(
+    `fee solve refused: no convergence in ${FEE_SOLVE_MAX_ITERS} iterations [${trace.join(" ")}]`
+  );
+}
+
 function loadAsks() {
   return fs.existsSync(ASKS_FILE)
     ? JSON.parse(fs.readFileSync(ASKS_FILE, "utf8"))
@@ -208,4 +249,5 @@ module.exports = {
   loadAsks,
   saveAsks,
   findP2shUtxos,
+  solveSpendFee,
 };
