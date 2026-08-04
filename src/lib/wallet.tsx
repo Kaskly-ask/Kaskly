@@ -28,6 +28,39 @@ export interface WalletState {
 
 const STORAGE_KEY = "kaskly.wallet.v1";
 
+/** F26 — records that the user has revealed/exported this key at least
+ * once, so destructive actions can tell them what they are about to lose.
+ * Stores ONLY addresses and timestamps — never key material. */
+const BACKUP_KEY = "kaskly.backup.v1";
+
+function readBackups(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(BACKUP_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Has this address's key ever been exported from this browser? */
+export function hasExportedBackup(address: string): boolean {
+  return typeof readBackups()[address] === "number";
+}
+
+/** Record that the key was revealed/downloaded. Best-effort: a failure to
+ * persist must never block the user from seeing their own key. */
+export function markBackupExported(address: string): void {
+  try {
+    const all = readBackups();
+    all[address] = Date.now();
+    window.localStorage.setItem(BACKUP_KEY, JSON.stringify(all));
+  } catch {
+    /* storage full or blocked — the export itself still happened */
+  }
+}
+
 /** Normalize a pasted private key: keys arrive from JSON files and docs
  * wrapped in quotes, whitespace, commas, or an 0x prefix (beta finding:
  * raw paste produced "Secp256k1 -> malformed or out-of-range secret

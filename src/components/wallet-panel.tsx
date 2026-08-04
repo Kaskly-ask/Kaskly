@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { PRIVATE_KEY_RE, sanitizeKeyInput, useWallet } from "@/lib/wallet";
+import {
+  PRIVATE_KEY_RE,
+  sanitizeKeyInput,
+  useWallet,
+  hasExportedBackup,
+  markBackupExported,
+} from "@/lib/wallet";
 import { ShareAsk } from "./share-ask";
 import { ContactsList } from "./contacts-list";
 import { useChain } from "@/lib/chain";
@@ -18,6 +24,21 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
   const keyLooksValid = PRIVATE_KEY_RE.test(cleanedKey);
   const [balance, setBalance] = useState<bigint | null>(null);
   const [copied, setCopied] = useState(false);
+  // F26 — key export/backup state.
+  const [revealed, setRevealed] = useState(false);
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
+  // Bumped whenever a backup is exported, so the Disconnect warning
+  // re-reads storage and reflects an export the user just performed.
+  const [backupTick, setBackupTick] = useState(0);
+
+  // Derived at render, not synchronised through an effect: this is a read
+  // of external state, and the panel only renders client-side once a
+  // wallet is connected.
+  const backedUp =
+    wallet && typeof window !== "undefined"
+      ? hasExportedBackup(wallet.address)
+      : false;
+  void backupTick; // re-read trigger
 
   useEffect(() => {
     if (!wallet) return;
@@ -99,16 +120,126 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
             </div>
             <ShareAsk address={wallet.address} />
             <ContactsList />
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => {
-                  disconnect();
-                  onClose();
-                }}
-                className="text-xs text-danger hover:underline"
-              >
-                Disconnect (forgets the key in this browser)
-              </button>
+
+            {/* F26 — before this existed there was NO way to get the key
+                out of the browser. A created wallet had no user-held
+                backup, so Disconnect, clearing site data, or any browser
+                reset destroyed the funds irreversibly, with no attacker
+                involved. */}
+            <div className="space-y-2 pt-3 border-t border-white/10">
+              <p className="text-xs text-muted leading-relaxed">
+                <strong className="text-e8">Back up your key.</strong> It
+                exists only in this browser. If you clear site data, use a
+                different browser, or disconnect, it is gone — and so is
+                anything it holds. No one can recover it for you.
+              </p>
+              {!revealed ? (
+                <button
+                  onClick={() => {
+                    setRevealed(true);
+                    markBackupExported(wallet.address);
+                    setBackupTick((n) => n + 1);
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-md border border-teal/40 text-teal hover:bg-teal/10"
+                >
+                  Reveal private key
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-warn">
+                    Anyone with these characters controls this wallet. Do not
+                    screenshot or paste it anywhere online.
+                  </p>
+                  <code className="block break-all bg-card-raised border border-warn/40 rounded-md px-2 py-2 font-mono text-[11px] select-all">
+                    {wallet.privateKey}
+                  </code>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(wallet.privateKey);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        } catch {
+                          /* clipboard blocked — the key is on screen to copy */
+                        }
+                      }}
+                      className="text-xs text-teal hover:underline"
+                    >
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const blob = new Blob(
+                          [
+                            `Kaskly wallet backup\n` +
+                              `address: ${wallet.address}\n` +
+                              `private key: ${wallet.privateKey}\n\n` +
+                              `Anyone with this key controls the wallet. Keep it offline.\n`,
+                          ],
+                          { type: "text/plain" }
+                        );
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `kaskly-backup-${wallet.address.slice(-8)}.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        markBackupExported(wallet.address);
+                        setBackupTick((n) => n + 1);
+                      }}
+                      className="text-xs text-teal hover:underline"
+                    >
+                      Download backup
+                    </button>
+                    <button
+                      onClick={() => setRevealed(false)}
+                      className="text-xs text-muted hover:underline"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-white/10">
+              {/* F25 — Disconnect used to be one unconfirmed click, so two
+                  clickjacked clicks destroyed the wallet. Confirmation is
+                  defence-in-depth behind the frame-ancestors CSP. */}
+              {!confirmingDisconnect ? (
+                <button
+                  onClick={() => setConfirmingDisconnect(true)}
+                  className="text-xs text-danger hover:underline"
+                >
+                  Disconnect (forgets the key in this browser)
+                </button>
+              ) : (
+                <div className="space-y-2 w-full">
+                  <p className="text-xs text-danger leading-relaxed">
+                    {backedUp
+                      ? "This erases the key from this browser. You exported a backup earlier — make sure you still have it, because this cannot be undone."
+                      : "⚠ You have NEVER exported this key. Erasing it destroys this wallet and anything it holds, permanently. Reveal and save the key first."}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => {
+                        disconnect();
+                        onClose();
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-md bg-danger/20 border border-danger/50 text-danger"
+                    >
+                      {backedUp ? "Yes, disconnect" : "Disconnect anyway — I accept losing it"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDisconnect(false)}
+                      className="text-xs text-muted hover:underline"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
               <button onClick={onClose} className="text-xs text-muted hover:underline">
                 Close
               </button>

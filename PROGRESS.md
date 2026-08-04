@@ -889,6 +889,62 @@ after hours. Testnet only.
 V3; and the F14 client classification fix, which ships with V3 or neither
 is complete.
 
+### 🚧 MAINNET HARD-GATE LIST (nothing ships to real value until every item is closed)
+
+1. **F24 guard 1 does NOT protect mainnet.** `DAA_ANCHORS` has a real,
+   measured anchor for testnet-10 only; mainnet is an explicit
+   `UNVERIFIED-STUB` with no anchor. `assertPlausibleDaaScore` REFUSES
+   unknown networks rather than trusting them, so mainnet Asks cannot be
+   created at all today — which is the correct failure direction, but it
+   means **the mainnet DAA rate must be measured and the anchor set before
+   mainnet is usable**. Guessing an anchor would either reject every
+   legitimate Ask or wave a hostile score through.
+2. **F29 / Kasia conversation.** Replies carry no authorship (no AAD) and
+   ciphertexts are malleable. The fix breaks Kasia wire compatibility, so
+   it travels with the `r2:`/`a2:` namespace question (Q3/Q4) — not a
+   unilateral patch.
+3. **Fee-rate behaviour re-proof.** Reasoned, not chain-demonstrated;
+   TN10 cannot simulate elevated fees (COVENANT-V3-DESIGN.md §10b).
+4. Plus the pre-existing mainnet gates already recorded: independent
+   security review, key-storage upgrade (localStorage is testnet-grade),
+   and LLC/legal.
+
+### F26 + F25 FIXED (2026-08-05)
+
+**F26 — key export/backup.** There was no reveal or export path anywhere,
+so a created wallet had no user-held copy and any browser reset was
+irreversible fund loss with no attacker involved. Added to the wallet
+panel: reveal (hidden behind an explicit click), copy, and download-as-file.
+`kaskly.backup.v1` records **addresses and timestamps only, never key
+material**, so destructive actions can tell the user what they are about
+to lose. Disconnect now warns differently depending on whether a backup
+was ever exported — "⚠ You have NEVER exported this key" versus a
+softer confirm — and the button reads "Disconnect anyway — I accept
+losing it" when no backup exists.
+
+**F25 — clickjack.** `next.config.ts` now serves
+`Content-Security-Policy: frame-ancestors 'none'` and
+`X-Frame-Options: DENY` (plus Referrer-Policy and nosniff), and Disconnect
+requires a confirmation step so one click cannot destroy the wallet.
+
+**PoC-verified against a running production build:**
+- Headers actually served (curl on `/` and `/ask`):
+  `Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY`.
+- The clickjack PoC was re-run from a genuinely different origin
+  (attacker page on :8099 framing the app on :3000) in a real browser:
+  ```
+  iframe load event fired : true
+  frame renders content   : false
+  detail                  : frame document empty
+  CLICKJACK BLOCKED — nothing to click; frame refused to display
+  ```
+  PoC kept at `scratchpad/clickjack-poc.html`.
+
+**NOT claimed:** this is not a full CSP. A `script-src` policy — the real
+defence-in-depth against key exfiltration — needs a nonce strategy
+compatible with Next's inline bootstrap and was deliberately NOT attempted
+rather than shipped half-configured and reported as done. F19 stays open.
+
 ### THIRD AUDIT — below the covenant (F24-F32), 2026-08-05, vs tag `covenant-v3.1` (8b1485e)
 
 Three exploit-framed audits of the layers the first two passes ASSUMED
