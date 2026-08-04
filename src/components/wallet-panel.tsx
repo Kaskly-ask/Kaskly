@@ -55,9 +55,9 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
       <div className="max-w-2xl mx-auto px-4 py-4 text-sm space-y-3">
         {wallet ? (
           <>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
               <span className="text-muted">Address</span>
-              <code className="font-mono text-xs break-all">{wallet.address}</code>
+              <code className="font-mono text-xs break-all min-w-0">{wallet.address}</code>
               <button
                 className="text-xs text-teal hover:underline shrink-0"
                 onClick={async () => {
@@ -69,7 +69,7 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
                 {copied ? "copied" : "copy"}
               </button>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span className="text-muted">Balance</span>
               <span className="amount font-semibold">
                 {balance === null ? "…" : `${formatKas(balance)} TKAS`}
@@ -85,7 +85,7 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
               </span>
             </div>
             <ShareAsk address={wallet.address} />
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => {
                   disconnect();

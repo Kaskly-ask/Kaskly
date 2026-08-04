@@ -92,6 +92,32 @@ Written truthfully instead as: "doesn't need to be in crypto — a wallet
 is two clicks in a browser, no exchange, no purchase… KAS they earned,
 not bought." Human may veto/adjust.
 
+### B5 — mobile horizontal overflow, launch-blocking (human, real-device
+report + evidence, 2026-08-05; FIXED and measured)
+
+Symptom: page-wide horizontal scroll on phones — connect-wallet off-
+screen right; scrolling right slid the centered hero off the LEFT edge
+(document wider than viewport). Root cause: fixed-position background
+layers CANNOT widen a document and all content containers are max-w
+constrained — the one culprit was the HEADER'S NON-WRAPPING FLEX ROW,
+whose overflow extends the document scroll width. Fixes:
+1. Header row is now `flex-wrap` with compressed mobile spacing — a
+   wrapping row is STRUCTURALLY unable to widen the document; on narrow
+   screens the TESTNET badge + wallet chip wrap to a second right-
+   aligned line, immediately visible without any scrolling (TESTNET
+   stays visible at every width — honesty rule).
+2. Backstop on html/body: `overflow-x: clip` (hidden fallback) — the
+   page is literally unable to scroll sideways even if a future wide
+   element regresses. Deliberately does NOT mask detection: scrollWidth
+   still reports offenders, which the audit uses.
+3. Wallet panel mobile pass: address/balance/action rows wrap; long
+   values break; share block already fluid.
+Verification (iframe-constrained real layout viewports, prod build):
+/, /ask, /inbox, /sent at BOTH 390px and 360px → scrollWidth ==
+clientWidth on every route (zero overflow), including with the wallet
+panel OPEN and the share preview rendered at 390px. Deployed for the
+human's real-phone confirmation.
+
 ### Share copy revision — final workshopped versions (human, 2026-08-05)
 
 Card CTA replaced with: "Ask me anything — an answer, or your money

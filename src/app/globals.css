@@ -34,6 +34,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html,
+body {
+  /* Backstop: the page must be literally unable to overflow sideways.
+     (The actual wide element — the header's non-wrapping row — is fixed
+     structurally; this guards future regressions. `clip` avoids turning
+     body into a scroll container; `hidden` is the fallback.) */
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

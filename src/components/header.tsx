@@ -62,7 +62,12 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 w-full glass-deep border-b border-white/10 mb-8">
-      <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-5">
+      {/* flex-wrap is the structural overflow fix: a wrapping row can
+          never exceed the viewport, so the document can never grow wider
+          than 100vw (mobile bug 2026-08-05: the unwrapped row extended
+          the whole document's scroll width, sliding centered content off
+          the left edge). */}
+      <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-5">
         {/* Wordmark placeholder — final brand assets pending (public/brand/) */}
         <Link href="/" className="flex items-baseline gap-2 shrink-0">
           <span className="text-teal text-xl font-bold tracking-tight">
@@ -73,12 +78,12 @@ export function Header() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-1 text-sm">
+        <nav className="flex items-center gap-0.5 sm:gap-1 text-sm">
           {NAV.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
+              className={`px-2 sm:px-3 py-1.5 rounded-md transition-colors ${
                 pathname === href
                   ? "text-teal bg-teal/10"
                   : "text-muted hover:text-foreground"
@@ -90,11 +95,11 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="flex-1 flex justify-center">
+        <div className="flex-1 hidden sm:flex justify-center">
           <EarnedWidget />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 ml-auto sm:ml-0">
           <span
             className="text-[10px] font-semibold tracking-widest text-warn border border-warn/40 rounded px-1.5 py-0.5 bg-background"
             title="This app runs on Kaspa testnet-10 only. No real money."
