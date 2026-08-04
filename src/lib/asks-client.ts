@@ -35,8 +35,10 @@ export async function cacheAsk(record: AskRecordDto): Promise<void> {
   if (!r.ok) throw new Error(`cache write failed (HTTP ${r.status})`);
 }
 
-export async function clearCache(): Promise<void> {
-  const r = await fetch("/api/asks", { method: "DELETE" });
+export async function clearCache(address: string): Promise<void> {
+  const r = await fetch(`/api/asks?address=${encodeURIComponent(address)}`, {
+    method: "DELETE",
+  });
   if (!r.ok) throw new Error(`cache clear failed (HTTP ${r.status})`);
 }
 

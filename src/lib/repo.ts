@@ -72,8 +72,14 @@ export async function listAsksForAddress(
   return { sent: sent.map(toDto), received: received.map(toDto) };
 }
 
-/** Drop the whole cache — used by the rebuild-from-chain check (§3.3). */
-export async function clearAsks(): Promise<number> {
-  const { count } = await prisma.ask.deleteMany({});
+/** Drop the cache rows involving ONE address — used by the rebuild-from-
+ * chain action (§3.3). Beta hardening: the server is shared, so a rebuild
+ * must never wipe other testers' cached rows. */
+export async function clearAsksForAddress(address: string): Promise<number> {
+  const { count } = await prisma.ask.deleteMany({
+    where: {
+      OR: [{ senderAddress: address }, { recipientAddress: address }],
+    },
+  });
   return count;
 }

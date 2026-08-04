@@ -44,11 +44,26 @@ export default function RootLayout({
             <main className="w-full max-w-2xl mx-auto flex-1 px-4 pb-16">
               {children}
             </main>
-            <footer className="w-full max-w-2xl mx-auto px-4 pb-8 text-xs text-faint">
-              Kaskly is a reference client for the open ASK protocol — no
-              fees, non-custodial, testnet only. Messages and replies are
-              end-to-end encrypted; addresses, amounts and deadlines are
-              public on-chain.
+            <footer className="w-full max-w-2xl mx-auto px-4 pb-8 text-xs text-faint space-y-2">
+              <p>
+                Kaskly is a reference client for the open ASK protocol — no
+                fees, non-custodial, testnet only. Messages and replies are
+                end-to-end encrypted; addresses, amounts and deadlines are
+                public on-chain.
+              </p>
+              {process.env.NEXT_PUBLIC_FEEDBACK_URL && (
+                <p>
+                  Beta:{" "}
+                  <a
+                    href={process.env.NEXT_PUBLIC_FEEDBACK_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-teal hover:underline"
+                  >
+                    report a bug or share feedback
+                  </a>
+                </p>
+              )}
             </footer>
             </ActivityProvider>
           </ChainProvider>

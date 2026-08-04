@@ -4,7 +4,7 @@
 // transits this API: ciphertexts, addresses, txids, statuses only.
 import { NextRequest, NextResponse } from "next/server";
 import {
-  clearAsks,
+  clearAsksForAddress,
   listAsksForAddress,
   upsertAsk,
   validateAskRecord,
@@ -31,9 +31,15 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(await upsertAsk(dto));
 }
 
-/** Drop the cache. The UI's "rebuild from chain" action calls this first,
- * then repopulates purely from chain state — proving the DB is disposable. */
-export async function DELETE() {
-  const deleted = await clearAsks();
+/** Drop ONE address's cache rows. The UI's "rebuild from chain" action
+ * calls this first, then repopulates purely from chain state — proving
+ * the DB is disposable. Address-scoped so a rebuild on a shared server
+ * never touches other users' rows (beta hardening). */
+export async function DELETE(req: NextRequest) {
+  const address = req.nextUrl.searchParams.get("address");
+  if (!address) {
+    return NextResponse.json({ error: "address required" }, { status: 400 });
+  }
+  const deleted = await clearAsksForAddress(address);
   return NextResponse.json({ deleted });
 }

@@ -2,9 +2,49 @@
 
 ## Current phase
 
-**Phase 4 — PITCH PACKAGE. BUILD COMPLETE (2026-08-04); AWAITING THE
-HUMAN GATE: dry-run the PITCH.md demo script end-to-end + fresh-clone
-the repo following only the README. Tag `phase-4` after acceptance.**
+**Phase 4 — PITCH PACKAGE + TESTNET BETA (scope amended by the human,
+2026-08-04). Beta prep BUILD COMPLETE; awaiting human-led deployment
+(DEPLOY.md steps) + the Phase 4 gate (demo dry-run + fresh clone). The
+public-launch material (PITCH.md — already written) is SEQUENCED AFTER
+beta feedback.**
+
+### Phase 4 scope amendment — Discord testnet beta (human, 2026-08-04)
+
+Beta with the Kaspa Discord community BEFORE public launch; the app
+must be deployed and reachable first. This SUPERSEDES the earlier
+"deployment/DNS is a later step, do not build deploy config now"
+instruction (recorded under identity assets). Delivered:
+
+1. **DEPLOY.md** — recommendation: a persistent Node host (Render or
+   Railway) running `next start` with a disk, NOT Vercel/CF Pages yet
+   (SQLite cache needs a writable disk; the Postgres swap is designed-
+   for but deferred to public launch). Build/start commands, full env
+   table (with the NEXT_PUBLIC-baked-at-build warning), and the exact
+   human Cloudflare DNS steps for kaskly.app (CNAME apex via
+   flattening, grey-cloud until TLS issues, DNSSEC independent).
+2. **Feedback path** — recommendation: the Discord beta thread (testers
+   are already there; no dependency on flipping the repo public).
+   Footer "report a bug" link driven by `NEXT_PUBLIC_FEEDBACK_URL`
+   (hidden when unset).
+3. **BETA.md** — copy-paste Discord blurb + full onboarding: wallet
+   creation (browser-only keys warning), faucet, what to try, what to
+   try to break, honest known-limitations list from TRUST.md, reporting
+   guidance.
+4. **Abuse-proofing sanity check** — four findings fixed, all of the
+   "twenty strangers, one hour, shared server" class:
+   - `DELETE /api/asks` wiped EVERYONE's cache (any tester's rebuild
+     would grief all others) → now address-scoped
+     (`clearAsksForAddress`), UI passes the wallet address;
+   - cache-write fields were unbounded (100 MB ciphertext / 500-digit
+     amount = DB bloat + BigInt-overflow 500s) → hard caps in
+     `validateAskRecord` (ciphertext 61-16,384 bytes hex, amount ≤ 20
+     digits, deadline ≤ 12 digits, address shape regex), unit-tested;
+   - Sent rendered rows the chain doesn't back (Inbox filtered, Sent
+     didn't — junk records targeted at a tester's address would linger)
+     → Sent now filters failed verification too;
+   - reviewed and left alone: open GET by address (public chain data
+     only, by design), per-browser wallets, dev deadline chip (build-
+     time eliminated in production), fee-exceeds-amount guard (F7).
 
 ### Phase 4 build (started on human go after glass acceptance, 2026-08-04)
 

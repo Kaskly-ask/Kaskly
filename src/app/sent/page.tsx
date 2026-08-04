@@ -97,7 +97,7 @@ function RebuildButton() {
       // from chain state. The page reload shows only what the chain says.
       const rpc = await getRpc();
       const { rebuildFromChain } = await import("@/lib/rebuild");
-      await clearCache();
+      await clearCache(wallet.address);
       const records = await rebuildFromChain(rpc, wallet.address);
       for (const r of records) await cacheAsk(r);
       setDetail(`${records.length} ask(s) reconstructed from chain`);
@@ -128,8 +128,11 @@ export default function SentPage() {
   const { wallet, status } = useWallet();
   const { asks, loading, error, daaScore } = useAsks("sender");
   const { hidden, hide, unhide } = useHidden();
-  const active = asks.filter((a) => !hidden.has(a.askRef));
-  const hiddenAsks = asks.filter((a) => hidden.has(a.askRef));
+  // Beta hardening: like the Inbox, never surface rows the chain does not
+  // back (junk cache writes on a shared server must die here).
+  const visible = asks.filter((a) => a.verification !== "failed");
+  const active = visible.filter((a) => !hidden.has(a.askRef));
+  const hiddenAsks = visible.filter((a) => hidden.has(a.askRef));
   // F9 v1 rule: only settled cards may be hidden.
   const settled = (a: LiveAsk) => a.status !== "open";
 
