@@ -148,6 +148,121 @@ function buildAskRedeemScriptV2({ recipientXOnlyHex, senderSpkBytes, deadline, m
     .addOp(Opcodes.OpEndIf);
 }
 
+// ---------------------------------------------------------------------
+// V3 covenant (COVENANT-V3-DESIGN.md). The AUTHORITATIVE definition is
+// src/lib/ask/covenant-v3.ts. This CJS builder exists only because spikes
+// cannot import TypeScript — and it is NOT trusted: assertV3VectorMatch()
+// below byte-compares it against the golden vector generated FROM the
+// TypeScript source before any probe runs. If they ever differ, probes
+// abort loudly rather than silently attacking a mirror.
+const V3_VECTOR_FILE = path.join(__dirname, "v3-golden-vector.json");
+const ASK_V3_REPLY_HEADER = "ciph_msg:1:ask:r2:";
+const ASK_V3_HEADER_BYTES = Buffer.from(ASK_V3_REPLY_HEADER, "utf8");
+const ASK_ID_OFFSET = ASK_V3_HEADER_BYTES.length; // 18
+const ASK_ID_END = ASK_ID_OFFSET + 32; // 50
+const MIN_CLAIM_PAYLOAD_LEN = ASK_ID_END;
+
+function buildAskRedeemScriptV3({
+  recipientXOnlyHex,
+  senderAddress,
+  deadlineDaa,
+  askIdHex,
+  refundAllowance,
+}) {
+  const { ScriptBuilder, Opcodes, payToAddressScript } = kaspa;
+  const senderSpkBytes = spkToStackBytes(payToAddressScript(senderAddress));
+  return new ScriptBuilder()
+    .addOp(Opcodes.OpIf)
+    .addOp(Opcodes.OpTxPayloadLen)
+    .addI64(BigInt(MIN_CLAIM_PAYLOAD_LEN))
+    .addOp(Opcodes.OpGreaterThanOrEqual)
+    .addOp(Opcodes.OpVerify)
+    .addI64(0n)
+    .addI64(BigInt(ASK_ID_OFFSET))
+    .addOp(Opcodes.OpTxPayloadSubstr)
+    .addData(ASK_V3_HEADER_BYTES)
+    .addOp(Opcodes.OpEqualVerify)
+    .addI64(BigInt(ASK_ID_OFFSET))
+    .addI64(BigInt(ASK_ID_END))
+    .addOp(Opcodes.OpTxPayloadSubstr)
+    .addData(Buffer.from(askIdHex, "hex"))
+    .addOp(Opcodes.OpEqualVerify)
+    .addData(Buffer.from(recipientXOnlyHex, "hex"))
+    .addOp(Opcodes.OpCheckSig)
+    .addOp(Opcodes.OpElse)
+    .addOp(Opcodes.OpTxInputCount)
+    .addI64(1n)
+    .addOp(Opcodes.OpNumEqualVerify)
+    .addLockTime(deadlineDaa)
+    .addOp(Opcodes.OpCheckLockTimeVerify)
+    .addOp(Opcodes.OpTxOutputCount)
+    .addI64(1n)
+    .addOp(Opcodes.OpNumEqualVerify)
+    .addI64(0n)
+    .addOp(Opcodes.OpTxOutputSpk)
+    .addData(senderSpkBytes)
+    .addOp(Opcodes.OpEqualVerify)
+    .addI64(0n)
+    .addOp(Opcodes.OpTxOutputAmount)
+    .addOp(Opcodes.OpTxInputIndex)
+    .addOp(Opcodes.OpTxInputAmount)
+    .addI64(refundAllowance)
+    .addOp(Opcodes.OpSub)
+    .addOp(Opcodes.OpGreaterThanOrEqual)
+    .addOp(Opcodes.OpEndIf);
+}
+
+/** HARD GATE for every V3 probe. Rebuilds the canonical covenant with this
+ * CJS builder and byte-compares script AND address against the vector
+ * generated from src/lib/ask/covenant-v3.ts. Throws on any difference so a
+ * probe can never attack a diverged mirror. Returns the vector. */
+function assertV3VectorMatch({ quiet } = {}) {
+  if (!fs.existsSync(V3_VECTOR_FILE)) {
+    throw new Error(
+      "spike/v3-golden-vector.json missing — run `npm test` to regenerate it from the TypeScript source"
+    );
+  }
+  const vector = JSON.parse(fs.readFileSync(V3_VECTOR_FILE, "utf8"));
+  const p = vector.params;
+  const { addressFromScriptPublicKey } = kaspa;
+  const redeem = buildAskRedeemScriptV3({
+    recipientXOnlyHex: p.recipientXOnlyHex,
+    senderAddress: p.senderAddress,
+    deadlineDaa: BigInt(p.deadlineDaa),
+    askIdHex: p.askIdHex,
+    refundAllowance: BigInt(p.refundAllowance),
+  });
+  const scriptHex = redeem.toString();
+  const p2sh = addressFromScriptPublicKey(
+    redeem.createPayToScriptHashScript(),
+    p.networkId
+  ).toString();
+
+  if (scriptHex !== vector.redeemScriptHex || p2sh !== vector.p2shAddress) {
+    throw new Error(
+      "V3 VECTOR MISMATCH — the spike builder and src/lib/ask/covenant-v3.ts have DIVERGED.\n" +
+        `  vector script : ${vector.redeemScriptHex}\n` +
+        `  spike  script : ${scriptHex}\n` +
+        `  vector p2sh   : ${vector.p2shAddress}\n` +
+        `  spike  p2sh   : ${p2sh}\n` +
+        "Refusing to run: a probe against a diverged mirror proves nothing."
+    );
+  }
+  if (
+    vector.layout.header !== ASK_V3_REPLY_HEADER ||
+    vector.layout.askIdOffset !== ASK_ID_OFFSET ||
+    vector.layout.askIdEnd !== ASK_ID_END
+  ) {
+    throw new Error("V3 VECTOR MISMATCH — payload layout constants differ");
+  }
+  if (!quiet) {
+    console.log("V3 vector check: MATCH (spike builder === covenant-v3.ts)");
+    console.log(`  script hex : ${scriptHex}`);
+    console.log(`  p2sh       : ${p2sh}`);
+  }
+  return vector;
+}
+
 function xOnlyHex(keypair) {
   const { PublicKey } = kaspa;
   const hex = new PublicKey(keypair.publicKey).toXOnlyPublicKey().toString();
@@ -250,4 +365,10 @@ module.exports = {
   saveAsks,
   findP2shUtxos,
   solveSpendFee,
+  buildAskRedeemScriptV3,
+  assertV3VectorMatch,
+  ASK_V3_REPLY_HEADER,
+  ASK_ID_OFFSET,
+  ASK_ID_END,
+  MIN_CLAIM_PAYLOAD_LEN,
 };

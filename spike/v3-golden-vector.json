@@ -1,0 +1,19 @@
+{
+  "_comment": "GENERATED FROM src/lib/ask/covenant-v3.ts by tests/unit/covenant-v3.test.ts. Do not hand-edit: regenerate by deleting this file and re-running the unit suite. spike/lib.cjs asserts its V3 builder against this before every probe.",
+  "params": {
+    "networkId": "testnet-10",
+    "recipientXOnlyHex": "abababababababababababababababababababababababababababababababab",
+    "senderAddress": "kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6",
+    "deadlineDaa": "1000000",
+    "askIdHex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "refundAllowance": "300000"
+  },
+  "layout": {
+    "header": "ciph_msg:1:ask:r2:",
+    "askIdOffset": 18,
+    "askIdEnd": 50,
+    "minClaimPayloadLen": 50
+  },
+  "redeemScriptHex": "63c40132a269000112b812636970685f6d73673a313a61736b3a72323a8801120132b82011111111111111111111111111111111111111111111111111111111111111118820ababababababababababababababababababababababababababababababababac67b3519d0340420fb0b4519d00c324000020a39d1a2a2bc880e3cf84b48d8e025213f1f12a27835b37a8e38855e354a9f314ac8800c2b9be03e0930494a268",
+  "p2shAddress": "kaspatest:pzwmxfcjea2l0s8cv532yrcffyr5z3spnfqvlxxuhnmnllgv94dacvugta7l2"
+}

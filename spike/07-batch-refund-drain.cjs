@@ -23,6 +23,8 @@ const {
   isChainRejection,
   loadKeys,
   buildAskRedeemScriptV2,
+  buildAskRedeemScriptV3,
+  assertV3VectorMatch,
   spkToStackBytes,
   xOnlyHex,
   loadAsks,
@@ -31,6 +33,11 @@ const {
 } = require("./lib.cjs");
 
 const DEADLINE_OFFSET = 600n; // ~60s at 10 DAA/s
+
+// Which covenant is under attack. V2 is the baseline that CONFIRMED the
+// drain (txid ab5575a6…); V3 must REFUTE it via OpTxInputCount == 1.
+// The attack code below is IDENTICAL for both — only the covenant changes.
+const COVENANT_VERSION = process.env.ASK_COVENANT_VERSION === "v3" ? "v3" : "v2";
 
 (async () => {
   const {
@@ -58,14 +65,25 @@ const DEADLINE_OFFSET = 600n; // ~60s at 10 DAA/s
     const specs = [
       { label: "A", amount: kaspaToSompi("1") },
       { label: "B", amount: kaspaToSompi("3") },
-    ].map((s) => {
+    ].map((s, i) => {
       const minRefund = s.amount - FEE_ALLOWANCE;
-      const redeem = buildAskRedeemScriptV2({
-        recipientXOnlyHex,
-        senderSpkBytes,
-        deadline,
-        minRefund,
-      });
+      // Per-Ask askId (V3 only) — its uniqueness is the F22 argument.
+      const askIdHex = (i === 0 ? "aa" : "bb").repeat(32);
+      const redeem =
+        COVENANT_VERSION === "v3"
+          ? buildAskRedeemScriptV3({
+              recipientXOnlyHex,
+              senderAddress,
+              deadlineDaa: deadline,
+              askIdHex,
+              refundAllowance: FEE_ALLOWANCE,
+            })
+          : buildAskRedeemScriptV2({
+              recipientXOnlyHex,
+              senderSpkBytes,
+              deadline,
+              minRefund,
+            });
       const redeemHex = redeem.toString();
       return {
         ...s,
@@ -79,6 +97,12 @@ const DEADLINE_OFFSET = 600n; // ~60s at 10 DAA/s
     });
 
     console.log("=== F12 batched-refund drain probe ===");
+    console.log("covenant under attack:", COVENANT_VERSION.toUpperCase());
+    if (COVENANT_VERSION === "v3") {
+      // HARD GATE: prove the spike builder is byte-identical to the shipped
+      // covenant-v3.ts before attacking anything. Throws on divergence.
+      assertV3VectorMatch();
+    }
     console.log("network:", NETWORK_ID, "deadline DAA:", deadline.toString());
     for (const s of specs) {
       console.log(
@@ -152,6 +176,7 @@ const DEADLINE_OFFSET = 600n; // ~60s at 10 DAA/s
     });
 
     const record = {
+      covenantVersion: COVENANT_VERSION,
       network: NETWORK_ID,
       deadline: deadline.toString(),
       lockTxid,
@@ -254,9 +279,11 @@ const DEADLINE_OFFSET = 600n; // ~60s at 10 DAA/s
     }
 
     const asks = loadAsks();
-    asks.f12probe = record;
+    asks[COVENANT_VERSION === "v3" ? "f12probeV3" : "f12probe"] = record;
     saveAsks(asks);
-    console.log("\nrecorded to spike/.asks.json under 'f12probe'");
+    console.log(
+      `\nrecorded to spike/.asks.json under '${COVENANT_VERSION === "v3" ? "f12probeV3" : "f12probe"}'`
+    );
   } finally {
     await rpc.disconnect();
   }

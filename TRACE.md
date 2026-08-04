@@ -103,7 +103,9 @@ evidence recorded in PROGRESS.md).
 | Item | Spec basis | Implementation | Tests | Status |
 |------|-----------|----------------|-------|--------|
 | V3 redeem script | COVENANT-V3-DESIGN.md | src/lib/ask/covenant-v3.ts (V2 covenant.ts untouched — in-flight Asks stay readable) | authored only; NOT proven | built |
-| F12 refund input pinning | design §1 | covenant-v3.ts refund branch (OpTxInputCount==1) | probe 07 must flip CONFIRMED→REFUTED against V3 | unstarted |
+| F12 refund input pinning | design §1 | covenant-v3.ts refund branch (OpTxInputCount==1) | probe 07 FLIPPED CONFIRMED→REFUTED against vector-backed V3 (2026-08-04, chain rejection `6f13dfff…`); control 07c PASS — single-input refunds accepted (`b269d3f2…`, `bf6d0162…`), R2-verified, so the rejection is attributable to the input pinning and not a blanket refund failure | verified |
+| Golden vector as single source of truth | design §9, R6 | spike/v3-golden-vector.json generated FROM src/lib/ask/covenant-v3.ts by tests/unit/covenant-v3.test.ts; spike/lib.cjs assertV3VectorMatch() byte-compares before every V3 probe | unit test asserts TS↔vector; negative test confirmed a single corrupted byte is caught; probes print the match before attacking | verified |
+| F21 refund pays true fee, not the floor | design §4 | client change pending; demonstrated by 07c | 07c paid 0.999/2.999 KAS vs floors 0.995/2.995 — sender keeps ~0.004 KAS per refund that V2 gave the miner; R2-verified from the node UTXO set | tested |
 | F12/F13/F21 floor from input amount | design §1,§3,§4 | covenant-v3.ts floor sequence | opcode sequence byte-identical to spike 11b Q4, which was chain-proven (below-floor rejected / above-floor accepted, 27f38aeb…); V3-level proof pending campaign | built |
 | F22 askId binding (M1) | design §2 | covenant-v3.ts claim branch | new probe 08 (cross-Ask claim) | unstarted |
 | **GATE: OpTxPayloadLen behaviour** | design §0, §2 | covenant-v3.ts length guard | spike 11c GATE PASS 2026-08-04 (control passed; guard alone: 49 rejected / 51 accepted; real offsets: 17 and 49 rejected, wrong askId rejected, correct 50-byte accepted 0c5da1bd…) | verified |

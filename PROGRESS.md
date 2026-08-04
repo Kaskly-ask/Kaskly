@@ -818,10 +818,42 @@ Stack order is `[output] [input] [allowance] OpSub OpGreaterThanOrEqual`
 compare would have accepted 11b's below-floor spend, which the chain
 rejected.
 
-**Still owed before any tag (design §9):** probe 07 must flip
-CONFIRMED→REFUTED against this exact script; cross-Ask probe 08; floor
-probe 09 incl. the 0.1 KAS non-convergence refusal; DAA probe 10; full R3
-suite green against V3; regenerated golden vector; and the F14 client
+**Golden vector — one source of truth (2026-08-04).** The spike lib cannot
+import TypeScript, so a hand-copied V3 builder would risk proving a mirror
+secure while the shipped covenant differed. Instead:
+`tests/unit/covenant-v3.test.ts` generates `spike/v3-golden-vector.json`
+FROM `src/lib/ask/covenant-v3.ts` and asserts against it (catching TS
+drift), and `spike/lib.cjs assertV3VectorMatch()` byte-compares its own
+builder against the same vector before ANY V3 probe runs (catching spike
+drift). Verified in both directions — a single corrupted byte in the
+vector was caught and the probe refused to run. Canonical script hex
+`63c40132a269…0494a268`, P2SH
+`kaspatest:pzwmxfcjea2l0s8cv532yrcffyr5z3spnfqvlxxuhnmnllgv94dacvugta7l2`.
+
+**Probe 07 vs V3 — FLIPPED CONFIRMED → REFUTED (2026-08-04).** Same attack
+code, only the covenant changed (`ASK_COVENANT_VERSION=v3`). Vector match
+printed before the attack. Two covenants (1 + 3 KAS) funded by
+`e6456584…`; the batched refund was **chain-rejected**, `6f13dfff…`:
+"script ran, but verification failed" — the script executed and a check
+failed, not an SDK build error.
+
+**Control 07c — PASS, and it was necessary.** A REFUTED verdict alone
+proves nothing: if V3 rejected *every* refund, the probe would look
+identical while the covenant stranded funds forever (the exact F13-class
+failure this campaign exists to prevent). 07c rebuilt the same two
+covenants — verifying the rebuilt P2SH matched the recorded addresses —
+and refunded each INDIVIDUALLY: both **ACCEPTED** (`b269d3f2…`,
+`bf6d0162…`), R2-verified over a fresh connection with the node's UTXO
+amounts matching the built amounts exactly. So the batched rejection is
+attributable to `OpTxInputCount == 1`, not a blanket failure.
+
+**F21 demonstrated live in the same run:** the refunds paid 0.999 and
+2.999 KAS against floors of 0.995 and 2.995 — the sender keeps ~0.004 KAS
+per refund that V2 handed to a miner.
+
+**Still owed before any tag (design §9):** cross-Ask probe 08 (incl. the
+same-lock-tx variant); floor probe 09 incl. the 0.1 KAS non-convergence
+refusal; DAA probe 10; full R3 suite green against V3; and the F14 client
 classification fix, which ships with V3 or neither is complete.
 
 ### Notes for the next session (R7 ritual) — updated at session park, 2026-08-05
