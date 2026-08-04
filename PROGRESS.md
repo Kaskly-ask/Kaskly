@@ -68,6 +68,30 @@ beta feedback.**
   verify step). Verified on a local production build with the flag set
   (chip present, send validated) and without (no trace).
 
+### Marketing homepage (human-directed build, 2026-08-05)
+
+Root route is now a landing page selling Kaskly to a stranger; the
+composer moved to **/ask** (nav + all internal links updated; every app
+route unchanged otherwise). Structure per the human's spec: pain-hook
+hero (with the REAL AskCard component as hero art — mock data, ticking
+countdown, ✓ escrowed badge), three-card How-it-works with the
+covenant honesty line, two-audience Why-it-matters, "Good for you. Good
+for Kaspa." win-win section, trust strip (non-custodial / encrypted /
+auto-refunds / open spec ISC / TESTNET badge with the "real money mode
+comes after it survives testing" line), identity footer with repo link
+marked "public soon". CTA to /ask from every section. Same design
+language and voice throughout; mobile-responsive by construction
+(single column, sm: grid collapse, no fixed widths).
+
+**One deliberate copy deviation, FLAGGED for the human:** the directed
+section-4 line "recipients don't need a wallet — one is created
+in-browser the moment they reply" describes the parked question-board
+flow, not the shipped product (an Ask is addressed TO an address, so
+the recipient creates their two-click wallet BEFORE they can be asked).
+Written truthfully instead as: "doesn't need to be in crypto — a wallet
+is two clicks in a browser, no exchange, no purchase… KAS they earned,
+not bought." Human may veto/adjust.
+
 ### Phase 4 scope amendment — Discord testnet beta (human, 2026-08-04)
 
 Beta with the Kaspa Discord community BEFORE public launch; the app

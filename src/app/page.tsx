@@ -1,269 +1,204 @@
 "use client";
-// S1 COMPOSE (brief §3.2): recipient (address or .kas), message, amount,
-// deadline picker (7-day default), TESTNET badge in header, honesty line
-// sourced from TRUST.md. There is deliberately no fee line (D2).
-import { useState } from "react";
+// Marketing landing for kaskly.app (root route; the composer lives at
+// /ask). Same design language as the app — near-black, hex texture, teal,
+// clear glass — and the same voice as the composer's enforcement blurb:
+// short declarative sentences, honesty as a feature. The hero art is the
+// REAL AskCard component with mock data, countdown ticking live.
 import Link from "next/link";
-import { useWallet } from "@/lib/wallet";
-import { useChain } from "@/lib/chain";
-import { sendAsk } from "@/lib/asks-client";
-import { isKnsName, resolveKns } from "@/lib/kns";
-import { setNote } from "@/lib/local-notes";
-import {
-  DAA_PER_SECOND,
-  MIN_DEADLINE_SECONDS,
-  SOAK_FLOOR_ACTIVE,
-  formatSeconds,
-  parseKas,
-} from "@/lib/config";
-import { ExplorerLink } from "@/components/ask-card";
-import { MAX_MESSAGE_BYTES, messageByteLength } from "@/lib/ask/protocol";
+import { AskCard } from "@/components/ask-card";
 
-const DEADLINE_CHOICES = [
-  { label: "1 hour", seconds: 3600n },
-  { label: "24 hours", seconds: 86400n },
-  { label: "3 days", seconds: 259200n },
-  { label: "7 days", seconds: 604800n },
-  { label: "14 days", seconds: 1209600n },
-];
-const DEFAULT_DEADLINE = 3; // 7 days (D9 default)
+const CTA =
+  "inline-block px-5 py-2.5 rounded-md bg-teal text-background font-semibold text-sm hover:opacity-90 transition-opacity";
 
-// Dev-only short deadline for refund/late-reply testing (post-tag queue
-// item 2). NODE_ENV is a compile-time constant in Next.js client bundles:
-// production builds statically eliminate this chip.
-if (process.env.NODE_ENV === "development") {
-  DEADLINE_CHOICES.push({ label: "2 min (testing)", seconds: 120n });
-}
-
-// Prod-soak floor override (env-gated, NOT NODE_ENV-gated): when
-// NEXT_PUBLIC_BETA_MIN_DEADLINE_SECONDS lowers the floor, ONE extra chip
-// appears at exactly the floor value. When the var is absent this block
-// contributes nothing — no UI hint the capability exists. The chip, the
-// floor constant, and the pre-send validation all read the same config
-// value, so the covenant constructed in the browser can never carry a
-// deadline below the active floor.
-if (SOAK_FLOOR_ACTIVE && !DEADLINE_CHOICES.some((c) => c.seconds === MIN_DEADLINE_SECONDS)) {
-  DEADLINE_CHOICES.push({
-    label: `${formatSeconds(MIN_DEADLINE_SECONDS)} (soak test)`,
-    seconds: MIN_DEADLINE_SECONDS,
-  });
-}
-
-export default function ComposePage() {
-  const { wallet, status: walletStatus } = useWallet();
-  const { getRpc } = useChain();
-  const [recipient, setRecipient] = useState("");
-  const [message, setMessage] = useState("");
-  const [amount, setAmount] = useState("");
-  const [deadlineIdx, setDeadlineIdx] = useState(DEFAULT_DEADLINE);
-  const [phase, setPhase] = useState<"idle" | "sending" | "done">("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [sentTxid, setSentTxid] = useState<string | null>(null);
-
-  const send = async () => {
-    if (!wallet) return;
-    setPhase("sending");
-    setError(null);
-    try {
-      const amountSompi = parseKas(amount);
-      let recipientAddress = recipient.trim();
-      if (isKnsName(recipientAddress)) {
-        const resolved = await resolveKns(recipientAddress.toLowerCase());
-        if (!resolved) throw new Error(`${recipientAddress} is not registered`);
-        recipientAddress = resolved;
-      }
-      if (recipientAddress === wallet.address) {
-        throw new Error("that is your own address");
-      }
-      const chosenSeconds = DEADLINE_CHOICES[deadlineIdx].seconds;
-      // Floor validation at the construction point (the browser IS where
-      // the covenant is built — there is no server-side enforcement to
-      // rely on). Reads the same config value that generated the options.
-      if (chosenSeconds < MIN_DEADLINE_SECONDS) {
-        throw new Error(
-          `minimum deadline is ${formatSeconds(MIN_DEADLINE_SECONDS)}`
-        );
-      }
-      const rpc = await getRpc();
-      const { currentDaaScore } = await import("@/lib/ask");
-      const daa = await currentDaaScore(rpc);
-      const deadlineDaa = daa + chosenSeconds * DAA_PER_SECOND;
-      const record = await sendAsk(rpc, {
-        senderAddress: wallet.address,
-        senderPrivateKeyHex: wallet.privateKey,
-        recipientAddress,
-        amountSompi,
-        message,
-        deadlineDaa,
-      });
-      // The chain copy is encrypted to the recipient — keep the author's
-      // plaintext locally so Sent can display it (never server-side).
-      setNote(record.askRef, "message", message);
-      setSentTxid(record.lockTxid);
-      setPhase("done");
-      setMessage("");
-      setAmount("");
-    } catch (e) {
-      setError(String((e as Error)?.message ?? e));
-      setPhase("idle");
-    }
-  };
-
-  if (phase === "done" && sentTxid) {
-    return (
-      <section className="space-y-5">
-        <h1 className="text-2xl font-semibold tracking-tight">Ask sent</h1>
-        <p className="text-muted text-sm leading-relaxed">
-          Your KAS is locked to the message. A reply claims it; if the
-          deadline passes silently, every cent comes back to you.
-        </p>
-        <div className="flex items-center gap-4">
-          <ExplorerLink txid={sentTxid} label="lock transaction" />
-          <Link href="/sent" className="text-sm text-teal hover:underline">
-            Track it in Sent →
-          </Link>
-        </div>
-        <button
-          onClick={() => setPhase("idle")}
-          className="text-sm text-muted hover:text-foreground underline"
-        >
-          Ask someone else
-        </button>
-      </section>
-    );
-  }
-
-  const messageBytes = messageByteLength(message);
-  const messageOver = messageBytes > MAX_MESSAGE_BYTES;
-  const disabled =
-    phase === "sending" ||
-    !wallet ||
-    !recipient.trim() ||
-    !message.trim() ||
-    messageOver ||
-    !amount.trim();
-
+function EscrowedBadge() {
   return (
-    <section className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ask someone</h1>
-        <p className="text-muted text-sm mt-1">
-          Attach KAS to a message. They reply, they get it. They don&apos;t,
-          you get every cent back.
+    <span className="text-[10px] tracking-wide text-teal border border-teal/30 rounded px-1.5 py-0.5">
+      ✓ escrowed
+    </span>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <div className="space-y-24 pt-8 pb-8">
+      {/* ---------- 1. HERO ---------- */}
+      <section className="space-y-6">
+        <p className="text-xs uppercase tracking-widest text-teal">
+          Just Ask Me
         </p>
-      </div>
-
-      {walletStatus === "disconnected" && (
-        <p className="text-warn text-sm border border-warn/30 rounded-lg px-4 py-3">
-          Connect a wallet (top right) to send an Ask.
+        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight [text-wrap:balance]">
+          Ever message someone you admire — and hear nothing back?
+        </h1>
+        <p className="text-muted text-lg leading-relaxed max-w-xl">
+          Kaskly attaches real money to your message. They reply, they earn
+          it. They stay silent, you get every cent back — automatically.
         </p>
-      )}
-
-      <div className="glass-clear rounded-xl p-5 space-y-4 animate-card-in">
-        <label className="block space-y-1.5">
-          <span className="text-xs text-muted">To — Kaspa address or .kas name</span>
-          <input
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            placeholder="kaspatest:… or a .kas name (like kaskly.kas)"
-            className="w-full bg-card-raised border border-border rounded-md px-3 py-2 font-mono text-sm focus:border-teal/50 focus:outline-none"
-          />
-        </label>
-
-        <label className="block space-y-1.5">
-          <span className="text-xs text-muted">
-            Your message{" "}
-            <span className={messageOver ? "text-danger" : "text-faint"}>
-              ({messageBytes.toLocaleString()}/{MAX_MESSAGE_BYTES.toLocaleString()},
-              encrypted — only the recipient can read it)
-            </span>
-          </span>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={5}
-            placeholder="What do you want to ask?"
-            className={`w-full bg-card-raised border rounded-md px-3 py-2 text-[15px] leading-relaxed focus:outline-none resize-y ${
-              messageOver
-                ? "border-danger/60 focus:border-danger"
-                : "border-border focus:border-teal/50"
-            }`}
-          />
-          {messageOver && (
-            <span className="text-xs text-danger block">
-              Message too long — max ~{MAX_MESSAGE_BYTES.toLocaleString()}{" "}
-              characters (less with emoji or accented text)
-            </span>
-          )}
-        </label>
-
-        <div className="flex flex-wrap gap-4">
-          <label className="space-y-1.5">
-            <span className="text-xs text-muted block">Amount (TKAS)</span>
-            <input
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="1.0"
-              inputMode="decimal"
-              className="w-36 bg-card-raised border border-border rounded-md px-3 py-2 amount text-sm focus:border-teal/50 focus:outline-none"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-xs text-muted block">
-              Reply deadline — silence refunds you
-            </span>
-            <div className="flex gap-1.5 flex-wrap">
-              {DEADLINE_CHOICES.map((c, i) => {
-                const isDevChip =
-                  c.label.includes("testing") || c.label.includes("soak");
-                return (
-                  <button
-                    key={c.label}
-                    type="button"
-                    onClick={() => setDeadlineIdx(i)}
-                    className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
-                      i === deadlineIdx
-                        ? isDevChip
-                          ? "border-warn/60 text-warn bg-warn/10"
-                          : "border-teal/60 text-teal bg-teal/10"
-                        : isDevChip
-                          ? "border-warn/30 text-warn/70 hover:text-warn"
-                          : "border-border text-muted hover:text-foreground"
-                    }`}
-                    title={
-                      isDevChip
-                        ? "Development builds only — never shown in production."
-                        : undefined
-                    }
-                  >
-                    {c.label}
-                  </button>
-                );
-              })}
-            </div>
-          </label>
+        <div className="flex flex-wrap items-center gap-5">
+          <Link href="/ask" className={CTA}>
+            Send your first Ask
+          </Link>
+          <a
+            href="#how"
+            className="text-sm text-muted hover:text-foreground transition-colors"
+          >
+            How it works ↓
+          </a>
         </div>
+        <div className="pt-6" aria-hidden>
+          <AskCard
+            message={
+              "Love your work. One question: what would you build on Kaspa if you had a free weekend? 25 TKAS says it's worth two minutes of your time."
+            }
+            amountSompi="2500000000"
+            counterpartyLabel="from"
+            counterpartyAddress="kaspatest:qz3e6x3290ygpc70sj6gmrsz2gflruf2y7p4kdaguwy9tc6548e3g6zspgvp6"
+            deadline="6012000"
+            daaScore={0n}
+            status="open"
+            badge={<EscrowedBadge />}
+          />
+        </div>
+      </section>
 
-        {error && <p className="text-danger text-sm">{error}</p>}
-
-        <button
-          disabled={disabled}
-          onClick={send}
-          className="px-4 py-2 rounded-md bg-teal text-background font-semibold text-sm disabled:opacity-40"
-        >
-          {phase === "sending" ? "Locking funds…" : "Send Ask"}
-        </button>
-
-        {/* Honesty line — mirrors TRUST.md; stays high-contrast on glass. */}
-        <p className="text-xs text-muted leading-relaxed pt-1 border-t border-white/10">
-          Enforced on-chain: only the recipient can claim, and only with a
-          transaction that carries a reply. After the deadline, the refund
-          needs nobody&apos;s permission and can only pay you back — a reply,
-          or your money back; late replies lose to the refund. No protocol
-          fees, ever. Message text is encrypted; addresses, amount and
-          deadline are public on-chain.
+      {/* ---------- 2. HOW IT WORKS ---------- */}
+      <section id="how" className="space-y-6 scroll-mt-24">
+        <h2 className="text-2xl font-semibold tracking-tight">How it works</h2>
+        <div className="space-y-4">
+          <div className="glass-clear rounded-xl p-5 space-y-2">
+            <p className="text-xs uppercase tracking-widest text-faint">
+              1 · Ask
+            </p>
+            <p className="text-[15px] leading-relaxed">
+              Write your message. Attach KAS. Set a deadline. Your money
+              locks under an on-chain rule the moment you send.
+            </p>
+          </div>
+          <div className="glass-clear rounded-xl p-5 space-y-2">
+            <p className="text-xs uppercase tracking-widest text-faint">
+              2 · They reply to claim
+            </p>
+            <p className="text-[15px] leading-relaxed">
+              Their answer is the transaction that pays them. One atomic
+              action — no reply, no money.
+            </p>
+          </div>
+          <div className="glass-clear rounded-xl p-5 space-y-2">
+            <p className="text-xs uppercase tracking-widest text-faint">
+              3 · Silence refunds you
+            </p>
+            <p className="text-[15px] leading-relaxed">
+              The deadline passes and the chain returns every cent. No
+              permission needed — from anyone.
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-muted">
+          Enforced by on-chain covenants — not promises. No protocol fees,
+          ever.
         </p>
-      </div>
-    </section>
+        <Link href="/ask" className="text-sm text-teal hover:underline">
+          Try it now →
+        </Link>
+      </section>
+
+      {/* ---------- 3. WHY IT MATTERS ---------- */}
+      <section className="space-y-6">
+        <h2 className="text-2xl font-semibold tracking-tight">
+          Why it matters
+        </h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="glass-clear rounded-xl p-5 space-y-3">
+            <p className="text-xs uppercase tracking-widest text-teal">
+              For askers
+            </p>
+            <ul className="space-y-2 text-[15px] leading-relaxed">
+              <li>Your message stands out from the noise.</li>
+              <li>You never pay for silence.</li>
+              <li>
+                The only outcomes are an answer or your money back.
+              </li>
+            </ul>
+          </div>
+          <div className="glass-clear rounded-xl p-5 space-y-3">
+            <p className="text-xs uppercase tracking-widest text-teal">
+              For answerers
+            </p>
+            <ul className="space-y-2 text-[15px] leading-relaxed">
+              <li>Your attention has value — get paid for it.</li>
+              <li>
+                No platform lock-in, no middleman. Your answers are yours.
+              </li>
+              <li>A new income stream that starts with one reply.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- 4. WIN-WIN / KASPA ---------- */}
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold tracking-tight">
+          Good for you. Good for Kaspa.
+        </h2>
+        <p className="text-[15px] text-muted leading-relaxed max-w-xl">
+          Every Ask brings someone new. The person you ask doesn&apos;t need
+          to be in crypto — a wallet is two clicks in a browser, no
+          exchange, no purchase. They enter the network holding KAS they
+          earned, not bought.
+        </p>
+        <p className="text-[15px] text-muted leading-relaxed max-w-xl">
+          Kaskly turns Kaspa&apos;s speed and covenants into something
+          people outside crypto actually want: a reason to show up. More
+          users. More real usage. More people earning their first KAS.
+          That&apos;s the win-win.
+        </p>
+        <Link href="/ask" className={CTA}>
+          Ask someone today
+        </Link>
+      </section>
+
+      {/* ---------- 5. TRUST STRIP ---------- */}
+      <section className="glass-clear rounded-xl p-5 space-y-3">
+        <p className="text-sm leading-relaxed">
+          <span className="text-foreground">Non-custodial</span>
+          <span className="text-faint"> — keys never leave your browser · </span>
+          <span className="text-foreground">end-to-end encrypted</span>
+          <span className="text-faint"> messages · </span>
+          <span className="text-foreground">automatic refunds</span>
+          <span className="text-faint"> enforced on-chain · </span>
+          <span className="text-foreground">open protocol, open spec</span>
+          <span className="text-faint"> (ISC)</span>
+        </p>
+        <p className="text-sm">
+          <span className="text-[10px] font-semibold tracking-widest text-warn border border-warn/40 rounded px-1.5 py-0.5 bg-background mr-2 align-middle">
+            TESTNET
+          </span>
+          <span className="text-muted">
+            Beta on testnet — real money mode comes after it survives
+            testing.
+          </span>
+        </p>
+      </section>
+
+      {/* ---------- 6. FOOTER ---------- */}
+      <section className="border-t border-white/10 pt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-faint">
+        <span className="text-muted">kaskly.app</span>
+        <span>·</span>
+        <span className="font-mono">kaskly.kas</span>
+        <span>·</span>
+        <a
+          href="https://github.com/Kaskly-ask/Kaskly"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-teal underline decoration-dotted"
+        >
+          spec &amp; reference client (repo public soon)
+        </a>
+        <span className="ml-auto">
+          <Link href="/ask" className="text-teal hover:underline">
+            Send your first Ask →
+          </Link>
+        </span>
+      </section>
+    </div>
   );
 }

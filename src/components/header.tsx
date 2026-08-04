@@ -11,7 +11,7 @@ import { formatKas, shortAddress } from "@/lib/config";
 import { WalletPanel } from "./wallet-panel";
 
 const NAV = [
-  { href: "/", label: "Ask" },
+  { href: "/ask", label: "Ask" },
   { href: "/inbox", label: "Inbox" },
   { href: "/sent", label: "Sent" },
 ] as const;

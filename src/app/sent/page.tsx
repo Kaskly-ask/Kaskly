@@ -152,7 +152,7 @@ export default function SentPage() {
       {wallet && !loading && asks.length === 0 && (
         <p className="text-muted text-sm">
           Nothing sent yet —{" "}
-          <Link href="/" className="text-teal hover:underline">
+          <Link href="/ask" className="text-teal hover:underline">
             ask someone
           </Link>
           .
