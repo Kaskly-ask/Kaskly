@@ -44,7 +44,40 @@ any host serves fine.
 
 > **`NEXT_PUBLIC_*` values are baked in at BUILD time.** Changing one
 > (e.g. the feedback URL) requires a rebuild/redeploy, not just a
-> restart.
+> restart. Render triggers the rebuild automatically on env-var changes.
+
+### Temporary soak-testing override (REMOVE BEFORE BETA)
+
+`NEXT_PUBLIC_BETA_MIN_DEADLINE_SECONDS` — when set to a value in
+`1..3599` (e.g. `120`), the deployed compose picker gains one extra
+"(soak test)" deadline chip at exactly that value, for repeated
+refund-cycle testing on the production deploy. Deliberately env-gated,
+NOT NODE_ENV-gated. When absent (the normal state) the floor is 1 hour
+and no trace of the option renders. Honesty note: the chain accepts any
+deadline — this floor is client policy, and the flag reaches the client
+at build time so the picker options and the pre-send validation read
+the same value; there is no server-side enforcement point to drift from.
+
+**This var MUST be removed (and the auto-rebuild verified) before the
+beta announcement** — see the checklist below.
+
+## Pre-beta announcement checklist
+
+Run top to bottom before posting the BETA.md blurb:
+
+- [ ] **Remove `NEXT_PUBLIC_BETA_MIN_DEADLINE_SECONDS`** from Render env
+      → wait for the auto-rebuild → verify the compose picker shows NO
+      "(soak test)" chip and 1 hour is the shortest option
+- [ ] `NEXT_PUBLIC_FEEDBACK_URL` set to the Discord beta thread → footer
+      "report a bug" link present and pointing at the right thread
+- [ ] `https://<domain>/kaspa_bg.wasm` returns binary (starts `00 61 73
+      6d`), and a hard-refreshed browser loads the app with no console
+      errors
+- [ ] Create-wallet → faucet → send → reply loop works once end-to-end
+      on the deployed site
+- [ ] DNS: kaskly.app resolves with valid TLS (if launching on the
+      domain rather than the onrender URL)
+- [ ] Fill the URL into the BETA.md blurb, then post
 
 The client refuses to boot on any non-testnet network id, and
 production builds statically exclude the "2 min (testing)" deadline

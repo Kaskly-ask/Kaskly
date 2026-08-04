@@ -9,7 +9,13 @@ import { useChain } from "@/lib/chain";
 import { sendAsk } from "@/lib/asks-client";
 import { isKnsName, resolveKns } from "@/lib/kns";
 import { setNote } from "@/lib/local-notes";
-import { DAA_PER_SECOND, parseKas } from "@/lib/config";
+import {
+  DAA_PER_SECOND,
+  MIN_DEADLINE_SECONDS,
+  SOAK_FLOOR_ACTIVE,
+  formatSeconds,
+  parseKas,
+} from "@/lib/config";
 import { ExplorerLink } from "@/components/ask-card";
 import { MAX_MESSAGE_BYTES, messageByteLength } from "@/lib/ask/protocol";
 
@@ -24,10 +30,23 @@ const DEFAULT_DEADLINE = 3; // 7 days (D9 default)
 
 // Dev-only short deadline for refund/late-reply testing (post-tag queue
 // item 2). NODE_ENV is a compile-time constant in Next.js client bundles:
-// production builds statically eliminate this chip — the production
-// minimum stays 1 hour.
+// production builds statically eliminate this chip.
 if (process.env.NODE_ENV === "development") {
   DEADLINE_CHOICES.push({ label: "2 min (testing)", seconds: 120n });
+}
+
+// Prod-soak floor override (env-gated, NOT NODE_ENV-gated): when
+// NEXT_PUBLIC_BETA_MIN_DEADLINE_SECONDS lowers the floor, ONE extra chip
+// appears at exactly the floor value. When the var is absent this block
+// contributes nothing — no UI hint the capability exists. The chip, the
+// floor constant, and the pre-send validation all read the same config
+// value, so the covenant constructed in the browser can never carry a
+// deadline below the active floor.
+if (SOAK_FLOOR_ACTIVE && !DEADLINE_CHOICES.some((c) => c.seconds === MIN_DEADLINE_SECONDS)) {
+  DEADLINE_CHOICES.push({
+    label: `${formatSeconds(MIN_DEADLINE_SECONDS)} (soak test)`,
+    seconds: MIN_DEADLINE_SECONDS,
+  });
 }
 
 export default function ComposePage() {
@@ -56,11 +75,19 @@ export default function ComposePage() {
       if (recipientAddress === wallet.address) {
         throw new Error("that is your own address");
       }
+      const chosenSeconds = DEADLINE_CHOICES[deadlineIdx].seconds;
+      // Floor validation at the construction point (the browser IS where
+      // the covenant is built — there is no server-side enforcement to
+      // rely on). Reads the same config value that generated the options.
+      if (chosenSeconds < MIN_DEADLINE_SECONDS) {
+        throw new Error(
+          `minimum deadline is ${formatSeconds(MIN_DEADLINE_SECONDS)}`
+        );
+      }
       const rpc = await getRpc();
       const { currentDaaScore } = await import("@/lib/ask");
       const daa = await currentDaaScore(rpc);
-      const deadlineDaa =
-        daa + DEADLINE_CHOICES[deadlineIdx].seconds * DAA_PER_SECOND;
+      const deadlineDaa = daa + chosenSeconds * DAA_PER_SECOND;
       const record = await sendAsk(rpc, {
         senderAddress: wallet.address,
         senderPrivateKeyHex: wallet.privateKey,
@@ -187,7 +214,8 @@ export default function ComposePage() {
             </span>
             <div className="flex gap-1.5 flex-wrap">
               {DEADLINE_CHOICES.map((c, i) => {
-                const isDevChip = c.label.includes("testing");
+                const isDevChip =
+                  c.label.includes("testing") || c.label.includes("soak");
                 return (
                   <button
                     key={c.label}

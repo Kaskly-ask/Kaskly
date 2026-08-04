@@ -52,6 +52,22 @@ beta feedback.**
   query (`?v=2.0.1`) so any browser-cached HTML-404 for the bare path
   can never wedge a client after recovery.
 
+- **B4 — prod-soak deadline floor override (human requirement,
+  2026-08-05).** `NEXT_PUBLIC_BETA_MIN_DEADLINE_SECONDS` (1..3599)
+  lowers the client deadline floor ON PRODUCTION BUILDS — env-gated,
+  deliberately NOT NODE_ENV-gated — adding one warn-styled "(soak
+  test)" chip at exactly the floor value; absent → 1-hour floor, zero
+  UI trace. Point-4 analysis recorded honestly: the chain accepts any
+  deadline, so the floor is CLIENT policy and the browser (where the
+  covenant is constructed) is the only enforcement point — the flag is
+  baked at build time (Render rebuilds on env change) and the picker
+  options + new pre-send floor validation read the same constant, so
+  they cannot diverge. Dev builds keep their 2-min chip via a matching
+  dev default floor. DEPLOY.md gained the removal requirement and a
+  full PRE-BETA CHECKLIST (removal of this var is item 1, with a
+  verify step). Verified on a local production build with the flag set
+  (chip present, send validated) and without (no trace).
+
 ### Phase 4 scope amendment — Discord testnet beta (human, 2026-08-04)
 
 Beta with the Kaspa Discord community BEFORE public launch; the app

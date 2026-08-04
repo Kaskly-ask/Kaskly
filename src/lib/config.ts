@@ -32,6 +32,43 @@ export function explorerTxUrl(txid: string): string {
  * used only for deadline pickers and countdown display, never enforcement). */
 export const DAA_PER_SECOND = 10n;
 
+/** Client-policy deadline floor, in seconds. IMPORTANT HONESTY NOTE: the
+ * chain/covenant accepts ANY deadline — this floor exists only in the
+ * client, which is also where the covenant is constructed, so this
+ * constant is the single enforcement point (picker options AND the
+ * pre-send validation both read it; they cannot disagree).
+ *
+ * Prod-soak override (human requirement, 2026-08-05): setting
+ * NEXT_PUBLIC_BETA_MIN_DEADLINE_SECONDS to 1..3599 lowers the floor on a
+ * PRODUCTION build — deliberately env-gated, NOT NODE_ENV-gated. Baked
+ * at build time (Render rebuilds on env change). Absent/invalid/≥3600 →
+ * the 1-hour floor, and the short option renders nowhere.
+ * MUST be removed before the beta announcement — see DEPLOY.md's
+ * pre-beta checklist. */
+const PRODUCTION_MIN_DEADLINE_SECONDS = 3600n;
+/** Dev builds already ship a 2-minute testing chip; the default floor
+ * there matches it so the chip stays valid. */
+const DEFAULT_MIN_DEADLINE_SECONDS =
+  process.env.NODE_ENV === "development" ? 120n : PRODUCTION_MIN_DEADLINE_SECONDS;
+export const MIN_DEADLINE_SECONDS: bigint = (() => {
+  const raw = process.env.NEXT_PUBLIC_BETA_MIN_DEADLINE_SECONDS;
+  if (!raw || !/^\d{1,4}$/.test(raw)) return DEFAULT_MIN_DEADLINE_SECONDS;
+  const v = BigInt(raw);
+  return v >= 1n && v < DEFAULT_MIN_DEADLINE_SECONDS
+    ? v
+    : DEFAULT_MIN_DEADLINE_SECONDS;
+})();
+/** True only when the env override is actively lowering the floor. */
+export const SOAK_FLOOR_ACTIVE =
+  MIN_DEADLINE_SECONDS < DEFAULT_MIN_DEADLINE_SECONDS;
+
+/** Humanize a small seconds value for the soak chip label. */
+export function formatSeconds(seconds: bigint): string {
+  if (seconds < 60n) return `${seconds}s`;
+  if (seconds % 60n === 0n) return `${seconds / 60n} min`;
+  return `${seconds / 60n}m ${seconds % 60n}s`;
+}
+
 export const SOMPI_PER_KAS = 100_000_000n;
 
 /** Format sompi as a KAS string for display (never float math on money). */
