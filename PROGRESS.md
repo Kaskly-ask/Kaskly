@@ -505,6 +505,268 @@ review package (zip on a GitHub Release) → private mainnet validation
 cap / 15 total-at-risk, human wallets only, canary-first ladder).
 kaskly.app remains testnet-only; the config.ts boot guard is untouched.
 
+### Adversarial review with mainnet eyes — 2026-08-04 (F12-F23)
+
+Method: three independent reviews (chain layer; key handling + crypto;
+app/orchestration layer), each with an explicit "how do I steal funds"
+framing, then **independent re-verification by the session author** —
+subagent output was not accepted as evidence for anything load-bearing
+(R6). Verification status is stated per finding. Nothing below is fixed
+yet; fixes land in the hardening block.
+
+**Headline: the covenant escrow is the strongest part of the system and
+no reviewer found a way to steal a locked Ask from its intended
+recipient. The defects are (a) two real fund-loss paths that are NOT
+theft-from-recipient, and (b) a cluster of "the UI lies about money"
+failures in the layer that interprets chain data.**
+
+#### F12 — CRITICAL — refund branch pins outputs but NOT inputs: batched refunds leak the surplus to a miner
+VERIFIED (structure) by direct read of `covenant.ts:89-103`: the OpElse
+branch constrains CLTV, `OpTxOutputCount == 1`, `output[0].spk ==
+senderSPK`, `output[0].amount >= minRefund` — and says **nothing about
+the input set**. Multiple expired covenant UTXOs sharing one sender can
+therefore be spent in a SINGLE signature-less transaction with ONE
+output of `max(minRefund_i)`; every script passes, and the difference
+(sum of inputs − that one output) is captured as miner fee. Since the
+refund needs no key and all covenant parameters are public in the
+announcement, any chain observer — a mining pool most naturally — can
+construct it. Reviewer measured a 2-input example at mass 976, fee
+97,600 sompi, storage mass 0 — i.e. cheap and standard, not exotic.
+Scale: 20 expired 100-KAS Asks from one sender → sender receives ~100
+KAS, miner takes ~1,900 KAS.
+EXPLOIT VIABILITY: reasoned from per-input script semantics, **not yet
+proven on chain**. Cheapest possible proof: two Asks from one wallet on
+TN10, one batched refund — this is the first thing the hardening block
+must do, before designing the fix.
+FIX IS EXPRESSIBLE TODAY: I confirmed against the pinned SDK that
+`OpTxInputCount` (179), `OpTxInputIndex` (185) and `OpTxInputAmount`
+(190) all exist. Minimum: pin `OpTxInputCount == 1`. Better:
+`output[0].amount >= OpTxInputAmount(OpTxInputIndex) − allowance`.
+NOTE: this is a COVENANT CHANGE — it changes the redeem script, so it
+breaks the golden vector, changes every P2SH address, and is a spec
+version event. It cannot be shipped as a client patch.
+Mainnet-specific: no (same on testnet); only mainnet makes it theft.
+
+#### F13 — CRITICAL — Asks between 0.005 and ~0.105 KAS are lockable but PERMANENTLY unspendable (funds burned)
+VERIFIED INDEPENDENTLY: I re-ran the mass/fee math myself against the
+pinned SDK (`calculateTransactionMass` / `calculateTransactionFee`,
+transaction built exactly as `transactions.ts:196-213` builds it) and
+reproduced the reviewer's numbers to the sompi, on BOTH `testnet-10`
+and `mainnet` (byte-identical):
+
+| amount (sompi) | refund mass | min fee | verdict |
+|---|---|---|---|
+| 600,000 | 8,333,334 | none exists | unspendable |
+| 1,000,000 | 1,000,000 | none exists | unspendable |
+| 2,500,000 | 100,000 | 10,000,000 | fee > allowance |
+| 5,000,000 | 22,222 | 2,222,200 | fee > allowance |
+| 10,000,000 | 5,263 | 526,300 | fee > allowance |
+| 10,500,000 | 4,762 | 476,200 | ok |
+| 100,000,000 | 741 | 74,100 | ok |
+
+Root cause: refund mass is dominated by **KIP-9 storage mass**, which
+scales inversely with output value — it is NOT a function of payload
+size. The fixed `REFUND_FEE_ALLOWANCE` (500,000 sompi, `protocol.ts:46`)
+is therefore sufficient only above ~0.105 KAS. The covenant pins
+`output >= minRefund`, so the refund cannot pay the larger fee; the
+claim path fails on the same amounts. Both parties are locked out
+forever. The only guard today rejects `amount <= 500,000` sompi
+(`node.ts:110`) — **20x too low** — and the compose screen has no
+minimum at all (`ask/page.tsx:89` → `parseKas` accepts "0.006").
+**This directly falsifies ASKSPEC.md:221-223**, which states the refund
+"mass is small and constant" and the fixed allowance is "always
+sufficient". That sentence is wrong and must be corrected (P6 defect).
+Mainnet-specific: no — but mainnet is where a "cheap test send" burns
+real money, and a 5 KAS cap does not protect against it (the danger is
+the FLOOR, not the ceiling).
+
+#### F14 — HIGH — a claim can make the sender's UI say "refunded — every sompi is back in your wallet"
+VERIFIED by direct read of `asks-client.ts:191-222` (this was the lead
+seeded from the phase-4 TRACE exception; it is real). The covenant's
+claim branch validates only the 15-byte prefix, so a claim carrying
+`ciph_msg:1:ask:` + garbage is chain-valid and pays the recipient.
+`parseAskPayload` then THROWS, the `catch` at `:211-213` swallows it,
+and control falls to `:214-222`, which returns unconditionally
+`verified: true, status: "refunded", refundTxid: <the claim txid>`.
+There is no check that the spending transaction looks anything like a
+refund. Three distinct inputs reach that line: garbage body; a
+well-formed reply whose `ref` names a different Ask; an `a`-subkind
+payload.
+User-visible: Sent shows the "refunded" chip and the sentence "No reply
+came. Every sompi is back in your wallet." (`sent/page.tsx:75-79`) with
+an explorer link **labelled "refund"** pointing at a transaction that
+paid the recipient. It is written to the cache (`activity.tsx:118-135`)
+and "rebuild from chain" reproduces it (`rebuild.ts:145-152`) — the
+designated recovery action confirms the lie.
+Also a spec divergence: `ASKSPEC.md:249-250` says "spent otherwise
+**after deadline** → refunded"; the code omits the deadline condition.
+FIX (client-only, no covenant change): classify as refunded only on a
+positive test — exactly one output, paying `senderAddress`, >= minRefund,
+deadline passed — and add an explicit third state otherwise.
+Mainnet-specific: yes in severity (testnet: cosmetic; mainnet: it is the
+difference between "I was cheated" and "the system worked").
+
+#### F15 — HIGH — reply forgery: any dust transaction can flip a sender's Ask to "answered"
+VERIFIED by direct read of `activity.tsx:227-243`. The firehose handler
+fires for every chain transaction whose payload carries the ASK prefix,
+and if `envelope.ref` matches one of your lock txids it sets
+`status: "answered"`, `claimTxid: <that txid>`, `replyCiphertext: <that
+blob>` — with **no check that the transaction spent the covenant at
+all**, no `verified` check, no status check. Lock txids and the sender's
+encryption key (their address) are public, so anyone can broadcast a
+cheap transaction carrying a payload that renders as the recipient's
+reply. Transient (the 45s re-derive corrects it) but trivially
+repeatable, and while status != open the auto-refund effect skips the
+Ask (`activity.tsx:257-260`) — so it also delays refunds.
+Related, PERSISTENT variant (reviewer-reported, structure confirmed):
+the covenant's REFUND branch imposes no payload constraint, so a
+sig-less refund can carry a forged reply payload; `deriveStatusFromChain`
+classifies by payload rather than by which branch was taken, so that
+state is cached and survives reload.
+Mainnet-specific: yes.
+
+#### F16 — HIGH — one dust payment to a covenant address jams claim, refund, and display for that Ask
+VERIFIED by direct read of `node.ts:164-172`: `getCovenantUtxo` returns
+`entries[0]` with **no filtering by outpoint or amount**. The P2SH is
+publicly derivable from the announcement, so anyone can add a second
+UTXO to it for the cost of one transaction. Then: the §4 verification
+compares `entries[0].outpoint.transactionId` to the lock txid and fails
+→ the Ask is filtered out of BOTH screens for both parties; `claimAsk`
+builds against the dust UTXO and throws; `maybeAutoRefund` builds a
+refund from a dust input that can never satisfy `minRefund`. Funds are
+not stolen (a correct client picking the right outpoint could still
+spend) but this client is permanently stuck, and the recipient is denied
+the money. FIX (one line, client-only): select by
+`outpoint.transactionId === lockTxid && amount === amountSompi`.
+Mainnet-specific: yes.
+
+#### F17 — HIGH — hostile KNS response silently redirects the whole payment
+Reviewer-reported, code cited: `kns.ts:19-31` performs no validation on
+the returned owner address — no shape check, no network-prefix check;
+the only sanity check (`asset === name`) is echoed by the same server.
+`ask/page.tsx:91-95` assigns it straight to the recipient and the
+address chip renders off the TYPED `.kas` name, so **the user never sees
+the resolved address before funds lock**. A compromised
+`api.knsdomains.org` funds covenants claimable only by the attacker.
+FIX: validate shape + network prefix, and show the resolved address for
+confirmation before locking. Mainnet-specific: yes.
+
+#### F18 — HIGH — unauthenticated cache API can hide a real Ask and suppress its refund
+`api/asks/route.ts:21-45` + `repo.ts:39-85`: POST upserts by `askRef`,
+DELETE wipes by `address`, no auth, no origin check, no rate limit, all
+inputs publicly enumerable. Poisoning a row with altered sender/amount
+makes derivation reproduce a different P2SH → `verified:false` → the
+Ask is filtered from both screens WHILE the auto-refund effect operates
+on the poisoned record and queries the wrong covenant — so a real open
+Ask becomes invisible and its refund is never broadcast by that client.
+A variant whose derivation throws leaves a row `pending` forever, and
+pending rows render — a permanent phishing card for one HTTP request.
+Mainnet-specific: yes.
+
+#### F19 — MEDIUM — no CSP or security headers; XSS would mean immediate total key loss
+`next.config.ts` sets no headers; no CSP/frame-ancestors/Trusted-Types
+anywhere. The reviewer independently re-verified the "React text nodes
+only" claim and it HOLDS (zero dangerouslySetInnerHTML/innerHTML/eval/
+new Function/srcdoc/document.write/insertAdjacentHTML in `src/`, no
+third-party runtime scripts, fonts self-hosted). So there is no known
+sink today — but the only defense is "we didn't write one", and
+`localStorage["kaskly.wallet.v1"]` is one injected line away. Mainnet
+needs a strict CSP as table stakes.
+
+#### F20 — MEDIUM — `DAA_PER_SECOND = 10n` is baked into every deadline and was measured on TN10 only
+`config.ts:33` → `ask/page.tsx:111`. Once written into the redeem script
+the deadline is immutable. Against a network with a different block
+rate, "7 days" silently becomes a different real duration in both
+directions, and the countdown lies for the whole period. Miner
+manipulation of DAA is bounded and not attacker-steerable (reviewer's
+assessment, which matches my own reading) — the hardcoded constant is
+the real risk. Must be re-measured on mainnet before any real KAS; the
+call site already has `currentDaaScore`, so a self-correcting
+measurement is cheap. Mainnet-specific: yes.
+
+#### F21 — MEDIUM — every refund overpays the miner by ~425,900 sompi
+`transactions.ts:199` pays exactly `minRefund`, so the fee is always the
+full 500,000-sompi allowance even when the network minimum is 74,100.
+The covenant permits `>= minRefund`, so paying the sender more is
+already legal — the client just doesn't. Fixing this also lowers the
+F13 unspendable floor. Mainnet-specific: in severity, yes.
+
+#### F22 — MEDIUM — one reply payload can claim N Asks; the chain never binds a reply to the Ask it pays for
+The claim branch checks the 15-byte prefix and R's signature only — not
+the subkind, not `ref`. A recipient holding Asks from several senders
+can spend them all in one transaction with one reply payload. Combined
+with F14, the shorted senders see "refunded". `ASKSPEC.md:188-189`
+concedes the 15-byte limit, but `TRUST.md:15-18` ("only with a
+transaction that carries a reply") reads as much stronger than what the
+opcodes do.
+
+#### F23 — MEDIUM — documentation claims exceed what the opcodes enforce (P3/P6 defect)
+Concrete, quotable divergences to correct:
+- `ASKSPEC.md:221-223` "the fixed allowance is always sufficient" —
+  **false** (F13).
+- `ASKSPEC.md:233-235` refund is "exactly one output … the covenant
+  rejects anything else" — the covenant accepts any amount >= minRefund
+  and ANY NUMBER OF INPUTS (F12).
+- `TRUST.md:20-23` "only lets it pay the full amount (minus network fee)
+  to the sender" — it enforces a floor, per input (F12, F21).
+- `TRUST.md:15-18` "only with a transaction that carries a reply" — only
+  a 15-byte prefix (F22).
+- `ASKSPEC.md:310-318` "not chain-enforced" list omits reply AUTHORSHIP
+  and ask-sender AUTHENTICITY.
+TRUST.md is public and linked from the live site, so these corrections
+are the highest-priority documentation work regardless of code fixes.
+
+#### Lower-severity (recorded, not detailed here)
+Ask-sender impersonation (`envelope.sender` is self-asserted and never
+bound to the funding key — cheap phishing that can render under a
+trusted contact name); the ownership "proof" is self-referential and
+cannot fail, yet the UI labels it a verification; private-key field is
+`type=password` so password managers may offer to sync it;
+`limit=50`/`limit=500` history windows are floodable/truncating; a
+hostile RPC node can deny a claim or delay a refund via DAA score; the
+auto-refund gets one attempt per session because `maybeAutoRefund`
+swallows rejections and returns null; kasia1 is not key-committing
+(inherited from Kasia); caret ranges on the three @noble packages that
+handle key material; Earned can display a persisted number with no live
+chain backing; `Transaction.id` is stale after post-construction
+mutation (latent trap, currently harmless because the RPC-returned txid
+is what gets recorded).
+
+#### What the reviews CLEARED (independently useful)
+No path was found to steal a locked Ask from its intended recipient.
+`xOnlyFromAddress` rejects ECDSA and P2SH addresses (no "locked to a key
+nobody holds" grief). Claim signatures are SIGHASH_ALL and commit to the
+payload, so a reply cannot be swapped post-broadcast. No signature-script
+malleability of txids. The §4 announcement→funded-P2SH verification is
+genuinely sound and unverified rows are never cached or surfaced. CLTV
+construction is correct. The adversarial suite really does submit every
+attack to TN10 and require consensus rejection — its blind spot is that
+every attack is single-input/single-covenant, which is exactly why F12
+and F22 survived it. No fee outputs, no operator spend path (D2/D4
+hold). Keys never reach the server. The service worker never caches
+`/api/*` or money state. x-only ECDH parity handling is correct
+(verified empirically for odd-Y recipients). Fresh ephemeral key and
+nonce per message; AEAD tag enforced; key import validation is sound and
+un-hangable; RNG is the browser CSPRNG. Amount parsing is integer-only
+BigInt with no float path.
+
+#### Consequences for the mainnet plan (revised)
+1. **F12 and F13 are mainnet blockers.** F12 requires a covenant change
+   (new redeem script, new addresses, spec version bump) — it is not a
+   patch. Private mainnet validation must not proceed on the current
+   covenant.
+2. The 5 KAS per-Ask cap does not address F13 — the danger is a
+   too-SMALL Ask. A minimum (~0.2 KAS with margin) is required, enforced
+   in both `createAsk` and compose.
+3. Local-only deployment is not isolated by port-sharing: run-4 evidence
+   showed a stray browser tab hitting `localhost:3000` and polling the
+   throwaway server. The mainnet validation build must use a distinct
+   port so localStorage and the SW cache do not share an origin with any
+   local testnet build.
+4. The audit package should ship WITH these findings (KNOWN-LIMITATIONS
+   + fixes), not before them — a reviewer who rediscovers F14 learns
+   nothing new, and one who sees them documented can go hunting deeper.
+
 ### Notes for the next session (R7 ritual) — updated at session park, 2026-08-05
 
 **WHERE WE STOPPED — LAUNCH-READY.** Everything is built, verified,
