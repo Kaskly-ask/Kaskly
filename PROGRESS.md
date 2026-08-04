@@ -34,6 +34,24 @@ beta feedback.**
   shows the hint with Import disabled; the funded key pasted as
   `  "<key>",  ` imports successfully.
 
+- **B3 — wasm "magic word" report (2026-08-05): NOT a missing asset;
+  transient rollout window.** Human saw "expected magic word 00 61 73 6d,
+  found 3c 21 44 4f" (= "<!DO", an HTML 404) on the deployed site and
+  suspected the gitignored vendor path was absent on Render. Facts
+  gathered before fixing: the wasm IS in the remote tree
+  (vendor/web/kaspa/kaspa_bg.wasm, 11,511,494 bytes — only the public/
+  COPY is gitignored, and copy-wasm.mjs throws loudly if its committed
+  source were missing); the deployed URL was serving correct
+  `application/wasm` with proper magic bytes by the time of checking;
+  and a full in-browser check of kaskly.onrender.com passed (throwaway
+  wallet created, signature proof shown, balance resolved via live wRPC
+  → B1 fix CONFIRMED HOLDING in the deployed minified build; dev
+  deadline chip confirmed absent in production). Conclusion: the human
+  hit the deploy's mid-rollout window (or a cached 404 from it).
+  Hardening shipped anyway: the wasm is fetched with a fixed version
+  query (`?v=2.0.1`) so any browser-cached HTML-404 for the bare path
+  can never wedge a client after recovery.
+
 ### Phase 4 scope amendment — Discord testnet beta (human, 2026-08-04)
 
 Beta with the Kaspa Discord community BEFORE public launch; the app

@@ -15,7 +15,11 @@ export function ensureKaspaReady(): Promise<void> {
         default?: (opts: { module_or_path: string }) => Promise<unknown>;
       } & Record<string, unknown>;
       if (typeof mod.default === "function") {
-        await mod.default({ module_or_path: "/kaspa_bg.wasm" });
+        // Versioned URL (B3, 2026-08-05): a mid-rollout 404 for the bare
+        // path can be cached as HTML by browsers and keep failing with
+        // "expected magic word" after the server recovers. The fixed
+        // query keys the cache to a fresh entry while staying cacheable.
+        await mod.default({ module_or_path: "/kaspa_bg.wasm?v=2.0.1" });
         // Production-minification guard (beta blocker B1, 2026-08-05):
         // the wasm side casts JS objects by READING constructor.name and
         // string-comparing it (observed live: "object constructor `ed`
