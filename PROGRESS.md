@@ -881,7 +881,58 @@ after hours. Testnet only.
 V3; and the F14 client classification fix, which ships with V3 or neither
 is complete.
 
-### Notes for the next session (R7 ritual) — updated at session park, 2026-08-05
+### SESSION PARK — 2026-08-04 (V3 campaign in flight; R3 is the next block)
+
+**Read this first.** Phase 4 is tagged and pushed. Since then the session
+found and is fixing a set of real defects (F12-F23, PROGRESS above). The
+covenant V3 work is PARTWAY THROUGH its re-proof campaign. Nothing V3 is
+tagged, and `src/lib/ask/covenant-v3.ts` MUST NOT enter a tag until the
+R3 regression goes green (TRACE "Covenant V3" table is the checklist).
+
+**Proven on chain this session (with controls, R2-verified):**
+- F12 batch-refund drain: probe 07 flipped CONFIRMED→REFUTED against
+  vector-backed V3; control 07c proved single-input refunds still work,
+  so the rejection is the input pinning and not a blanket failure.
+- F22 cross-Ask claim: probe 08 rejected both the two-senders variant and
+  the same-lock-tx variant; all four controls claimed correctly.
+- Gate spikes 11/11b/11c pinned opcode BEHAVIOUR (not just existence).
+
+**Built but NOT yet regression-proven:** `covenant-v3.ts`,
+`protocol-v3.ts`, `transactions-v3.ts`, `fees-v3.ts`, and the F14
+classification fix in `asks-client.ts`. Unit suite 49 green, lint/build
+clean. None of it is wired into the running client yet — the app still
+creates and reads V2.
+
+**NEXT BLOCK — R3 regression, start it FRESH (do not begin at a session
+tail; the suite spends real TKAS and a half-wired run produces an
+ambiguous result, which we treat as INCONCLUSIVE, never a pass):**
+1. Parameterise `tests/integration/lifecycle.test.ts` over V2/V3, driving
+   the REAL client path (covenant-v3 + protocol-v3 + transactions-v3),
+   vector-backed via `assertV3VectorMatch`.
+2. Run ALL NINE original chain-rejected attacks plus BOTH lifecycles
+   against V3 — a green means the rewritten branches reopened nothing.
+3. Confirm the V2 lifecycle STILL passes: the client must keep reading
+   in-flight V2 Asks even though it will only create V3.
+4. The V3 announcement must carry `askId` and `refundAllowance` — without
+   both, the §4 escrow rebuild cannot reconstruct the covenant.
+5. Then DAA probe 10, regenerate the golden vector, re-tag.
+6. Then the harder second audit against the proven baseline.
+
+**Open items that need the Kasia team (Q3), not us:** whether
+`tn10.kaspa.stream` and Kasia clients skip the new `r2:` subkind cleanly
+or render garbage when they meet 32 raw askId bytes where JSON used to
+start. Do NOT claim it skips cleanly until their team confirms. The
+namespace itself is still provisional.
+
+**Standing discipline that produced this session's results — keep it:**
+every probe needs a POSITIVE CONTROL before its verdict means anything
+(spike 11 had none and two of its five results were my own fee bug);
+"rejected" without a control is indistinguishable from "my probe is
+broken"; SDK/build failures must surface as INCONCLUSIVE, never as a
+refutation; and verdicts are written from node-recomputed state, never
+from pre-broadcast locals.
+
+### Notes for the session park before that (R7 ritual) — 2026-08-05
 
 **WHERE WE STOPPED — LAUNCH-READY.** Everything is built, verified,
 committed, and on origin/main; the app is LIVE at kaskly.app (Render,
