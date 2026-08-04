@@ -422,6 +422,13 @@ the lock explicitly.
    counter up. Rationale: recipient-side retention/dopamine + a
    shareable proof-of-earnings surface. (Sender-side "refunded back"
    total → IDEAS.md.)
+2. **Dev-only short deadline chip** (queued 2026-08-04): a "2 min
+   (testing)" option in the compose deadline picker, visible ONLY in
+   development builds (env-gated — e.g. NODE_ENV/NEXT_PUBLIC flag),
+   never in production; the production minimum stays 1 hour. Rationale:
+   refund/late-reply human testing costs an hour per cycle today while
+   the integration tests already use ~90s deadlines — the human tester
+   deserves the same loop speed.
 
 ### Phase 3 gate findings (human end-to-end testing, 2026-08-04)
 
