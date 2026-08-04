@@ -79,6 +79,14 @@ export function formatKas(sompi: bigint): string {
   return `${whole}.${frac.toString().padStart(8, "0").replace(/0+$/, "")}`;
 }
 
+/** Canonical public origin for DURABLE share artifacts (cards, copied
+ * links, post texts). Hard-coded to the live domain (DNS + TLS live since
+ * 2026-08-05) so a card can never bake a localhost/staging URL no matter
+ * where it was generated. In-app navigation stays relative and is
+ * unaffected. */
+export const CANONICAL_ORIGIN =
+  process.env.NEXT_PUBLIC_CANONICAL_ORIGIN || "https://kaskly.app";
+
 /** Shorten a Kaspa address for chips/labels. */
 export function shortAddress(address: string): string {
   const sep = address.indexOf(":");

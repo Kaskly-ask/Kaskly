@@ -1,31 +1,21 @@
 "use client";
 // "Share your Ask link" block (wallet panel, connected state): download
 // the share card PNG, copy the Ask link, or copy a ready-to-paste post.
-// The link is a URL (origin/ask?to=<address>), never a raw address.
+// The link is a URL (CANONICAL origin /ask?to=<address>), never a raw
+// address — share artifacts are durable, so they always carry kaskly.app
+// regardless of where they were generated (human decision 2026-08-05).
 import { useEffect, useState } from "react";
+import { CANONICAL_ORIGIN } from "@/lib/config";
 
 export function ShareAsk({ address }: { address: string }) {
-  const [askUrl, setAskUrl] = useState<string | null>(null);
+  const askUrl = `${CANONICAL_ORIGIN}/ask?to=${address}`;
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled) {
-        setAskUrl(`${window.location.origin}/ask?to=${address}`);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [address]);
-
   // Live preview of the card — people should see what they'll post.
   useEffect(() => {
-    if (!askUrl) return;
     let cancelled = false;
     let objectUrl: string | null = null;
     (async () => {
@@ -46,7 +36,6 @@ export function ShareAsk({ address }: { address: string }) {
   }, [askUrl, address]);
 
   const download = async () => {
-    if (!askUrl) return;
     setBusy(true);
     setError(null);
     try {
@@ -70,8 +59,6 @@ export function ShareAsk({ address }: { address: string }) {
     setCopied(label);
     setTimeout(() => setCopied(null), 1500);
   };
-
-  if (!askUrl) return null;
 
   const posts = [
     `Just set up my Kaskly — send me a question with KAS attached: ${askUrl}`,

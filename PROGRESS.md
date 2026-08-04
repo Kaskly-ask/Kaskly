@@ -92,6 +92,16 @@ Written truthfully instead as: "doesn't need to be in crypto — a wallet
 is two clicks in a browser, no exchange, no purchase… KAS they earned,
 not bought." Human may veto/adjust.
 
+### DNS milestone (human report, 2026-08-05)
+
+**kaskly.app is LIVE with valid TLS** — the DNS switch happened before
+the share card shipped. Follow-up (human suggestion, adopted): share
+artifacts now hard-code the CANONICAL origin (`https://kaskly.app`,
+overridable via `NEXT_PUBLIC_CANONICAL_ORIGIN`) instead of reading the
+current origin — a card, copied link, or post text can never bake a
+localhost/staging URL no matter where it was generated. The earlier
+"regenerate after DNS switch" caveat is now void.
+
 ### Share card + QR (pre-beta feature, promoted from IDEAS 2026-08-05)
 
 Wallet-only scope (profiles remain future). Shipped: canvas-rendered

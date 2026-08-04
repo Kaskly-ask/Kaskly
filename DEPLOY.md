@@ -41,6 +41,7 @@ any host serves fine.
 | `NEXT_PUBLIC_EXPLORER_TX_URL_BASE` | `https://tn10.kaspa.stream/txs/` |
 | `NEXT_PUBLIC_KASPA_REST_API_BASE` | `https://api-tn10.kaspa.org` |
 | `NEXT_PUBLIC_FEEDBACK_URL` | the Discord beta thread URL |
+| `NEXT_PUBLIC_CANONICAL_ORIGIN` | optional; defaults to `https://kaskly.app` (baked into share cards/links) |
 
 > **`NEXT_PUBLIC_*` values are baked in at BUILD time.** Changing one
 > (e.g. the feedback URL) requires a rebuild/redeploy, not just a
