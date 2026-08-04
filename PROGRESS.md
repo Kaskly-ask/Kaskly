@@ -510,21 +510,26 @@ from the resolving tx's `block_time` (REST field verified on the real
 claim tx 2026-08-04; epoch ms). Deadline-expiry styling now applies only
 to awaiting-reply cards. A UI comment marks displayed times as estimates
 over the DAA-denominated deadline (ASKSPEC §8 already says so).
-2. **Dev-only short deadline chip** (queued 2026-08-04): a "2 min
-   (testing)" option in the compose deadline picker, visible ONLY in
-   development builds (env-gated — e.g. NODE_ENV/NEXT_PUBLIC flag),
-   never in production; the production minimum stays 1 hour. Rationale:
-   refund/late-reply human testing costs an hour per cycle today while
-   the integration tests already use ~90s deadlines — the human tester
-   deserves the same loop speed.
-3. **Countdown display smoothing** (queued 2026-08-04, gate observation):
-   countdowns occasionally tick UP a few seconds when the DAA clock
-   resyncs against actual block pace — correct behavior, bad optics.
-   Fix: absorb small upward corrections by slowing the tick rate rather
-   than jumping the number backward; only visibly resync on large drift.
-   (Displayed times are estimates over a DAA-denominated deadline —
-   ASKSPEC §8 states this; a UI comment now marks it at the Countdown
-   component.)
+2. ~~**Dev-only short deadline chip**~~ — **SHIPPED 2026-08-04**: "2 min
+   (testing)" chip in the compose picker, warn-styled, gated on
+   `NODE_ENV === "development"` (a compile-time constant in Next.js
+   client bundles — production builds statically eliminate it; the
+   production minimum stays 1 hour).
+3. ~~**Countdown display smoothing**~~ — **SHIPPED 2026-08-04**: the
+   countdown ticks locally at 1/s from a chain-synced target; small
+   upward corrections are absorbed by HOLDING the display (never ticks
+   up), small downward drift catches down at 2/s, and only drift beyond
+   60s resyncs visibly. Deadline-passed is never smoothed. Tooltip marks
+   times as estimates over the DAA-score deadline. Also fixed the Sent
+   copy nit: "decrypting reply…" → "fetching reply from chain…" (the
+   wait is the REST fetch, not decryption).
+
+**Post-tag queue COMPLETE (2026-08-04).** Glass refinements (world-space
+sheen via background-attachment:fixed — option 1 worked, no fallback
+listener needed; refraction ring widened to 5px with harder filter)
+approved by the human from zoomed screenshot evidence and committed.
+STOPPED here by instruction: final fresh-eyes visual judgment tomorrow,
+then Phase 4 on explicit human go (L3).
 
 ### Phase 3 gate findings (human end-to-end testing, 2026-08-04)
 

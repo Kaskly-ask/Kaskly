@@ -62,7 +62,7 @@ function SentItem({
               className="text-[15px] leading-relaxed"
             />
           ) : (
-            <p className="text-faint italic text-[15px]">decrypting reply…</p>
+            <p className="text-faint italic text-[15px]">fetching reply from chain…</p>
           )}
         </div>
       )}

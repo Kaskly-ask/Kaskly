@@ -19,8 +19,16 @@ const DEADLINE_CHOICES = [
   { label: "3 days", seconds: 259200n },
   { label: "7 days", seconds: 604800n },
   { label: "14 days", seconds: 1209600n },
-] as const;
+];
 const DEFAULT_DEADLINE = 3; // 7 days (D9 default)
+
+// Dev-only short deadline for refund/late-reply testing (post-tag queue
+// item 2). NODE_ENV is a compile-time constant in Next.js client bundles:
+// production builds statically eliminate this chip — the production
+// minimum stays 1 hour.
+if (process.env.NODE_ENV === "development") {
+  DEADLINE_CHOICES.push({ label: "2 min (testing)", seconds: 120n });
+}
 
 export default function ComposePage() {
   const { wallet, status: walletStatus } = useWallet();
@@ -178,20 +186,32 @@ export default function ComposePage() {
               Reply deadline — silence refunds you
             </span>
             <div className="flex gap-1.5 flex-wrap">
-              {DEADLINE_CHOICES.map((c, i) => (
-                <button
-                  key={c.label}
-                  type="button"
-                  onClick={() => setDeadlineIdx(i)}
-                  className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
-                    i === deadlineIdx
-                      ? "border-teal/60 text-teal bg-teal/10"
-                      : "border-border text-muted hover:text-foreground"
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
+              {DEADLINE_CHOICES.map((c, i) => {
+                const isDevChip = c.label.includes("testing");
+                return (
+                  <button
+                    key={c.label}
+                    type="button"
+                    onClick={() => setDeadlineIdx(i)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
+                      i === deadlineIdx
+                        ? isDevChip
+                          ? "border-warn/60 text-warn bg-warn/10"
+                          : "border-teal/60 text-teal bg-teal/10"
+                        : isDevChip
+                          ? "border-warn/30 text-warn/70 hover:text-warn"
+                          : "border-border text-muted hover:text-foreground"
+                    }`}
+                    title={
+                      isDevChip
+                        ? "Development builds only — never shown in production."
+                        : undefined
+                    }
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
             </div>
           </label>
         </div>

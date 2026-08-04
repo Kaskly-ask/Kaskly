@@ -3,7 +3,7 @@
 // bold tabular figure, countdown always visible. Message/reply text renders
 // through React text nodes only (XSS-inert by construction — never
 // dangerouslySetInnerHTML).
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DAA_PER_SECOND, explorerTxUrl, formatKas, shortAddress } from "@/lib/config";
 import type { AskStatus } from "@/lib/ask-record";
 
@@ -43,7 +43,11 @@ export function CollapsibleText({
 
 /** Displayed times are ESTIMATES over a DAA-denominated deadline (the
  * chain counts DAA score, ~10/s — ASKSPEC §8); small drift against real
- * block pace is expected. Smoothing of resync jumps is queued post-tag. */
+ * block pace is expected. Display smoothing (post-tag queue item 3): the
+ * countdown ticks locally at 1/s; when the chain clock resyncs, small
+ * corrections are absorbed by pausing (upward drift) or double-stepping
+ * (downward drift) rather than jumping the number — only drift beyond 60s
+ * resyncs visibly. */
 export function Countdown({
   deadline,
   daaScore,
@@ -51,14 +55,50 @@ export function Countdown({
   deadline: string;
   daaScore: bigint | null;
 }) {
-  if (daaScore === null) {
+  const [displaySecs, setDisplaySecs] = useState<number | null>(null);
+  const targetRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (daaScore === null) return;
+    const remainingDaa = BigInt(deadline) - daaScore;
+    const target = remainingDaa <= 0n ? 0 : Number(remainingDaa / DAA_PER_SECOND);
+    targetRef.current = target;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setDisplaySecs((cur) => {
+        if (cur === null) return target; // first sync
+        if (target === 0) return 0; // deadline passed — never smoothed
+        if (Math.abs(target - cur) > 60) return target; // visible resync
+        return cur; // small drift — absorbed by the tick below
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [daaScore, deadline]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setDisplaySecs((cur) => {
+        if (cur === null || cur <= 0) return cur;
+        const target = targetRef.current ?? cur;
+        const drift = target - cur;
+        if (drift > 2) return cur; // clock gained on us — hold, don't tick up
+        if (drift < -2) return Math.max(0, cur - 2); // catch down gently
+        return cur - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (displaySecs === null) {
     return <span className="text-faint text-xs">countdown syncing…</span>;
   }
-  const remainingDaa = BigInt(deadline) - daaScore;
-  if (remainingDaa <= 0n) {
+  if (displaySecs <= 0) {
     return <span className="text-warn text-xs">deadline passed</span>;
   }
-  const secs = Number(remainingDaa / DAA_PER_SECOND);
+  const secs = displaySecs;
   const d = Math.floor(secs / 86400);
   const h = Math.floor((secs % 86400) / 3600);
   const m = Math.floor((secs % 3600) / 60);
@@ -66,7 +106,10 @@ export function Countdown({
   const text =
     d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
   return (
-    <span className="text-teal text-xs amount" title={`deadline at DAA score ${deadline}`}>
+    <span
+      className="text-teal text-xs amount"
+      title={`Estimated from the DAA-score deadline (${deadline}); the chain counts blocks, not clocks.`}
+    >
       {text} left
     </span>
   );
