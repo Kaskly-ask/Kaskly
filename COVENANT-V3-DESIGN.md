@@ -345,10 +345,18 @@ while creating only V3; migration note required in ASKSPEC.
 1. Spikes 11/11b (opcode semantics) report verdicts — **gate on
    authoring**. DONE: control PASS, Q4 CONFIRMED, Q3 partial (offset 0),
    Q2 unresolved (M2 only).
-1b. **Spike 11c / Q3b** — `OpTxPayloadSubstr` at `[17:49]` with payload
-   lengths 16, 48 (must reject) and 49 (must ACCEPT), against a script
-   carrying the `OpTxPayloadLen` guard. Guards against the opposite
-   stranding bug: valid claims rejected.
+1b. **Spike 11c / Q3b** — at the REAL offsets (`[18:50]` after the marker
+   decision below), payload lengths 17, 49 (must reject) and 50 (must
+   ACCEPT), against a script carrying the `OpTxPayloadLen` guard. Guards
+   against the opposite stranding bug: valid claims rejected.
+   **[HUMAN] Q3b MUST also verify `OpTxPayloadLen` (196) BEHAVES** —
+   that it pushes the payload length as a script number usable by
+   `OpGreaterThanOrEqual`, accepting at exactly 50 and rejecting below.
+   Existence in the enum is not behaviour; that is the Q1 lesson, and this
+   guard protects the Critical claim branch, so it cannot itself rest on
+   an unverified opcode. Suggested isolation: a probe script that is ONLY
+   `OpTxPayloadLen <N> OpGreaterThanOrEqual OpVerify <key> OpCheckSig`,
+   exercised at N-1, N and N+1.
 2. Probe 07 flips CONFIRMED → REFUTED.
 3. New probe 08 rejects both cross-Ask variants, passes both controls.
 4. New probes 09 (incl. the 0.1 KAS refusal assertion) and 10 pass.
@@ -375,9 +383,35 @@ it is a live, small-scale instance of precisely the failure this gate
 exists to prevent: an unverified opcode assumption baked into a script,
 stranding funds forever. It cost 0.5 TKAS here instead of every V3 Ask.
 
-## 10. Remaining open question
+## 10. Version marker — DECIDED (2026-08-04)
 
-**Version marker:** new namespace (`ciph_msg:1:ask2:`) or an envelope
-version field? Q3 territory, and it touches the Kasia conversation. Note
-M1 already forces a payload layout change, so the marker decision should be
-made in the same breath.
+**Chosen: keep the namespace, change the subkind — `ciph_msg:1:ask:r2:`
+(and `a2:` for asks), with envelope `v: 2`.** Header grows 15 → 18 bytes,
+so askId occupies `[18:50]` and the guard is `OpTxPayloadLen >= 50`.
+
+Rejected alternatives and why:
+
+- **New namespace `ciph_msg:1:ask2:`** — forfeits working third-party
+  support we already have: `tn10.kaspa.stream` parses our claims natively
+  and shows `msg_type: ask` precisely because we live inside Kasia's
+  namespace. Every explorer and Kasia client would have to update before
+  that returns. A cosmetic marker is not worth that trade.
+- **Same subkind, bump only the envelope `v` field** — unsafe. M1 places
+  32 raw askId bytes where JSON used to begin, so a V2 parser reading a V3
+  payload does not fail cleanly, it MIS-parses. The incompatibility must be
+  visible before the JSON, i.e. in the fixed-offset header.
+
+Decisive argument: the namespace is still **provisional pending the Kasia
+team's blessing (Q3)**. Minting `ask2:` now compounds an unblessed choice
+before the conversation has happened, and hands them two things to bless
+instead of one. The subkind approach keeps the open question single, and
+if Kasia later renames the namespace the blast radius is identical — one
+constant.
+
+Changing the subkind also satisfies ASKSPEC §11's existing rule that
+clients MUST ignore versions they do not implement: an old parser meets an
+unknown subkind at byte 15 and skips, rather than mis-reading.
+
+**Implementation note:** the marker lives in ONE exported constant, so
+reversing this decision is a one-line change plus a regenerated golden
+vector.
