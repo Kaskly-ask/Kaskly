@@ -851,10 +851,35 @@ attributable to `OpTxInputCount == 1`, not a blanket failure.
 2.999 KAS against floors of 0.995 and 2.995 — the sender keeps ~0.004 KAS
 per refund that V2 handed to a miner.
 
-**Still owed before any tag (design §9):** cross-Ask probe 08 (incl. the
-same-lock-tx variant); floor probe 09 incl. the 0.1 KAS non-convergence
-refusal; DAA probe 10; full R3 suite green against V3; and the F14 client
-classification fix, which ships with V3 or neither is complete.
+**Probe 08 — F22 CLOSED ON V3 (2026-08-04).** Vector match printed before
+attacking, same discipline as 07c. F22 is specifically about one recipient
+claiming MULTIPLE SENDERS' Asks, so the probe funds a genuinely separate
+second wallet rather than weakening the test to same-sender.
+- (a) ATTACK one payload claiming Asks from sender1 AND sender2 →
+  **chain-rejected**
+- (b) ATTACK same-lock-tx variant — two Asks funded by ONE transaction, so
+  they share an outpoint txid (the case that would have broken mechanism
+  M2) → **chain-rejected**
+- (c) CONTROL all four Asks claimed individually with their own askId →
+  **all ACCEPTED** (`3633855d…`, `26be191e…`, `ea5935ac…`, `500c07b5…`),
+  R2-verified over a fresh connection: 1 output each, 0.997932 KAS to the
+  recipient. Without (c), the attack rejections would be
+  indistinguishable from "V3 rejects every claim".
+
+Two harness bugs were found and fixed while building it, both worth
+remembering: sequential funding transactions from one wallet race on UTXO
+selection (same class as F11 — fixed by funding sender1's three covenants
+in ONE transaction), and a top-up guard that checked for an EMPTY wallet
+rather than a sufficient BALANCE left sender2 stuck at 0.998 KAS.
+
+Aborted runs left ~4 TKAS in orphaned covenants; the deadline offset was
+shortened to ~30 minutes so those become refundable shortly rather than
+after hours. Testnet only.
+
+**Still owed before any tag (design §9):** floor probe 09 incl. the
+0.1 KAS non-convergence refusal; DAA probe 10; full R3 suite green against
+V3; and the F14 client classification fix, which ships with V3 or neither
+is complete.
 
 ### Notes for the next session (R7 ritual) — updated at session park, 2026-08-05
 
