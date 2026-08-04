@@ -16,8 +16,8 @@ can only pay the sender.
   implement an interoperable client from it alone
 - **Trust model, in plain language:** [TRUST.md](./TRUST.md)
 - **Pitch + demo script:** [PITCH.md](./PITCH.md)
-- **Project identity:** [kaskly.app](https://kaskly.app) (production
-  deploy target) · `kaskly.kas` on-chain (KNS inscription #96310)
+- **Live app:** [kaskly.app](https://kaskly.app) (testnet beta) ·
+  `kaskly.kas` on-chain (KNS inscription #96310)
 
 > **TESTNET ONLY.** Everything here runs exclusively on Kaspa
 > testnet-10. No real money is involved anywhere, and the client

@@ -1,21 +1,13 @@
 # IDEAS — Parking lot
 
 _Anything out of scope for the ASK v2.0 brief lands here instead of in code
-(brief §7 L6). Nothing in this file is a commitment._
-
-## DROPS v1.0 material (superseded by this brief; future work)
-
-- **Envelope** — the original DROPS gifting/attachment mode.
-- **Boost** — paid amplification/priority mode.
-- **Overlay** — the DROPS social overlay layer.
-- **Profiles** — user profiles.
-- **Explore** — public discovery/explore surface.
+(brief §7 L6). Nothing in this file is a commitment. Some product-roadmap
+material is maintained privately outside the repo._
 
 ## D11 out-of-scope list (logged, not built)
 
-- Fees / monetization of any kind (protocol stays fee-free forever — D2; any
-  monetization thinking stays in this file)
-- Envelope / Boost / overlay modes (see above)
+- Fees / monetization of any kind (protocol stays fee-free forever — D2)
+- Envelope / Boost / overlay modes
 - Profiles and social features
 - Recurring payments
 - Multi-token support
@@ -27,33 +19,11 @@ _Anything out of scope for the ASK v2.0 brief lands here instead of in code
 
 ## Later entries
 
-_(add below as they come up)_
-
 - **Shareable Onboarding Card** — **PROMOTED & SHIPPED 2026-08-05 in a
   wallet-only scope** (share card PNG + QR encoding `/ask?to=<addr>`,
   copy-link, paste-ready posts, composer ?to= prefill — see PROGRESS).
-  Remaining future scope from the original idea: the PROFILE/HANDLE
-  layer (username on the card instead of a truncated address, kaskly.app
-  profile links) — still post-beta, still requires lightweight profiles.
-- **Crowd-Funded Community Question Board** (logged 2026-08-05,
-  post-beta, MAJOR feature): a public board where anyone submits
-  questions aimed at a creator; the community contributes KAS toward
-  questions they want answered; a live leaderboard ranks by pooled
-  total, and top questions become high-value Asks. Cold-outreach
-  onboarding hook: send the funded question link to a target with NO
-  Kaskly wallet — they see the pot, answer, claim via a client-side
-  auto-generated wallet, and are onboarded already funded. Design notes
-  for future scoping:
-  1. Pooled escrow needs PROTOCOL design — likely N per-contributor
-     covenant locks with individual deadline refunds, preserving the
-     non-custodial + refund guarantees (never app-pooled custody);
-  2. Longer default deadlines + clear all-refund messaging, since
-     targets don't know the question exists;
-  3. A moderation stance is REQUIRED before any public, money-attached
-     question board exists (harassment vector).
-  Log only — no build.
 - **Sender-side "refunded back" total** (parked 2026-08-04, alongside
-  the queued recipient-side "Earned" widget): running total of TKAS
+  the shipped recipient-side "Earned" widget): running total of TKAS
   returned to the connected wallet by refunds. Lower priority than
   Earned (a refund is relief, not reward); if built, same rules:
   chain-derived, rebuild-consistent.
@@ -76,12 +46,9 @@ _(add below as they come up)_
   need a WATCHER SERVICE that knows which address to watch — a real
   tension with the non-custodial/no-server-knowledge posture (D4/D8).
   If ever built: strictly opt-in, watch-only (address, never keys), and
-  documented in TRUST.md. Better framing: this is a NATURAL KACHAT/KASIA
-  INTEGRATION ARGUMENT — a resident messenger app already watches the
-  chain for its user and gets ASK notifications for free. Belongs in the
-  PITCH.md adoption story.
+  documented in TRUST.md.
 - **Verified-sender identity via KNS in the envelope spec** (parked
-  2026-08-04): the project now holds kaskly.kas (KNS inscription #96310),
+  2026-08-04): the project holds kaskly.kas (KNS inscription #96310),
   and an ask envelope COULD carry a claimed KNS name that clients verify
   against the KNS owner address (sender identity display, anti-phishing).
   Envelope/spec change → explicitly out of current scope; revisit with

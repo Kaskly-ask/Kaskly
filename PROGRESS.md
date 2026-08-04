@@ -118,6 +118,28 @@ clientWidth on every route (zero overflow), including with the wallet
 panel OPEN and the share preview rendered at 390px. Deployed for the
 human's real-phone confirmation.
 
+### Pre-flip public-eyes pass (2026-08-05, before the repo goes public)
+
+1. Secrets audit #3 (full history, paths AND values, both funded keys):
+   CLEAN — no key values in any commit, no sensitive paths ever tracked.
+2. IDEAS split: strategic/unbuilt roadmap (DROPS material, crowd
+   question board, KaChat-integration framings) moved to gitignored
+   PRIVATE-IDEAS.md; public IDEAS.md keeps shipped/generic entries with
+   a discreet "some roadmap is maintained privately" note.
+3. Stranger pass over every .md. Redactions at HEAD: the Q1 private
+   conversation is now a neutral paraphrase (no verbatim quote, no
+   attribution, no strategic framing); the LAN IP scrubbed. FLAG FOR
+   THE HUMAN: git HISTORY still contains the original quote and the
+   pre-split IDEAS content — scrubbing history requires a rewrite
+   (breaks tags/clones) or the counterparty's OK to leave it; HEAD is
+   clean either way.
+4. README brought current post-deploy: kaskly.app is the live app, not
+   a "target"; cold-start commands re-checked against the Render build
+   (same steps).
+5. Trust links in-product: app footer gains "open source — verify every
+   claim" → the repo; landing footer label drops "public soon". Links
+   404 until the flip — flip promptly after deploy.
+
 ### B6 regression — scrim swallowed inside-panel clicks (human, launch-
 blocking, 2026-08-05; FIXED + full matrix verified before push)
 
@@ -726,7 +748,7 @@ the lock explicitly.
   Asks appear (after mandatory §4 verification), senders see "answered"
   arrive in real time with the reply decrypting client-side.
 - Dev server left running for the human gate test: http://localhost:3000
-  (LAN http://192.168.14.86:3000).
+  (plus the machine's LAN URL for the second device).
 
 ### Queued post-tag work (v1.0 polish — human-approved, NOT gate-blocking)
 
@@ -990,7 +1012,7 @@ Diff reviewed against [D4, D10, T4, §3.2 wallet, §5 design, C4 partial
 - Scaffolded Next.js (App Router) + TypeScript + Tailwind via create-next-app (template `app-tw`, npm, no git) — pending move from `ask-client-tmp/` into repo root.
 - Both research agents returned; findings recorded below with sources and confidence labels.
 - Key ground-truth takeaways: (1) npm's kaspa packages are stale (0.13.0, Nov 2023) — must vendor `kaspa-wasm32-sdk-v2.0.1.zip` from the rusty-kaspa v2.0.1 GitHub release; (2) TN10 is the verified post-Toccata testnet (working default; TN12 = covenant dev-staging, endpoints unverified); (3) no published precedent exists for an ASK-shaped two-path covenant — Phase 1 spike is load-bearing; (4) Kasia's payload convention is `ciph_msg:1:<kind>:...` and their encryption needs no handshake (address = x-only pubkey).
-- Recorded Q1 context from the human (KaChat dev / Kaspa Silver quote — see section above).
+- Recorded Q1 context from the human (KaChat dev conversation — see section above).
 - Scaffold moved to repo root. create-next-app generated its own CLAUDE.md (a pointer) — discarded; kept its `AGENTS.md` (warns Next.js 16 has breaking changes vs. training data; docs ship in `node_modules/next/dist/docs/` — aligns with R6).
 - Prisma 7.9.1: connection URL moved to `prisma.config.ts` (Prisma 7 change — `url` in schema.prisma is no longer supported; confirmed at prisma.io/docs/orm/reference/prisma-config-reference). SQLite `dev.db` at repo root, gitignored. Statuses are strings (Prisma+SQLite has no enums) validated at the repository layer.
 - Vendored the official WASM SDK v2.0.1 (zip SHA256 above), pinned via `file:` dependency; enumerated covenant/script types from the installed `.d.ts` (see WASM SDK section).
@@ -1208,26 +1230,15 @@ existing Kasia client would see the prefix) or a parallel `ask:1:...` namespace
 (clean separation; invisible to current Kasia clients). This shapes Q3 and should
 be raised with the KaChat/Kasia teams.
 
-## Q1 context from the human (recorded 2026-08-03)
+## Q1 context from the human (recorded 2026-08-03; redacted for the
+public repo 2026-08-05 — the original was a private conversation)
 
-Conversation with the KaChat dev — **Kaspa Silver (@KaspaSilver on X)**, who is
-also one of the four named Kasia maintainers (see Kasia ground truth below):
-
-> "The idea sounds great! I think this might utilize covenants to make it
-> possible. There will be a dedicated covenants update for KaChat and this can
-> seriously be looked into more. Right now all focus is getting the foundation
-> built with the most expected features that should be present for anyone using
-> KaChat."
-
-Implications for this project:
-- Independent validation of the covenant-first design (D5) from the adoption
-  target itself.
-- KaChat has a **dedicated covenants update planned** — ASK should be positioned
-  as ready-made material for that update (spec + proven testnet reference
-  implementation), which is exactly the DEL-1/DEL-2/DEL-3 shape.
-- Their near-term focus is core KaChat features, not covenants — so nothing is
-  blocked on them, and the pitch (Phase 4) should minimize their integration
-  lift: self-contained spec, working reference code, recorded lifecycle txids.
+The human spoke with a KaChat/Kasia maintainer before Phase 1. Summary
+of what shaped the project (paraphrased; no private correspondence
+reproduced): the covenant-first direction was received positively, and
+their near-term focus is core KaChat features — so nothing here is
+blocked on them, and the deliverables were shaped to be self-contained
+(spec + working reference + recorded txids).
 
 ## Open questions for the human (Section 10)
 

@@ -51,3 +51,6 @@ npm-debug.log*
 
 # derived review bundle
 kaskly-review.zip
+
+# private roadmap — never in the public repo
+PRIVATE-IDEAS.md

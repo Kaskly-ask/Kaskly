@@ -51,6 +51,18 @@ export default function RootLayout({
                 end-to-end encrypted; addresses, amounts and deadlines are
                 public on-chain.
               </p>
+              <p>
+                <a
+                  href="https://github.com/Kaskly-ask/Kaskly"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-teal hover:underline"
+                >
+                  open source
+                </a>{" "}
+                — verify every claim: the spec, the client, and the
+                on-chain evidence (ISC).
+              </p>
               {process.env.NEXT_PUBLIC_FEEDBACK_URL && (
                 <p>
                   Beta:{" "}

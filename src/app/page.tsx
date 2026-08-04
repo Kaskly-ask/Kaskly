@@ -192,7 +192,7 @@ export default function LandingPage() {
           rel="noopener noreferrer"
           className="hover:text-teal underline decoration-dotted"
         >
-          spec &amp; reference client (repo public soon)
+          open source — spec &amp; reference client (ISC)
         </a>
         <span className="ml-auto">
           <Link href="/ask" className="text-teal hover:underline">
