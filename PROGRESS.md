@@ -899,6 +899,19 @@ is complete.
    means **the mainnet DAA rate must be measured and the anchor set before
    mainnet is usable**. Guessing an anchor would either reject every
    legitimate Ask or wave a hostile score through.
+1b. **A3 RESIDUAL — in-band DAA inflation still lengthens a lock.** The
+   fourth-audit fix made guard 2 measure the deadline against an
+   independent anchor projection, so a node lie that pushes the real lock
+   past the 90-day ceiling is now caught. **A lie that stays inside the
+   band and under the ceiling still inflates the lock** — the user asks
+   for 7 days and gets more, invisibly, because the countdown reads the
+   same node. The unbounded case is closed; this one is not. It is a
+   griefing vector that survives to mainnet, so it is a GATE and not a
+   test comment: closing it needs a tighter ceiling or a second,
+   independent time source. Asserted as a passing test documenting the
+   residual in `tests/unit/daa-guard.test.ts`
+   ("A3 RESIDUAL, asserted honestly").
+
 2. **F29 / Kasia conversation.** Replies carry no authorship (no AAD) and
    ciphertexts are malleable. The fix breaks Kasia wire compatibility, so
    it travels with the `r2:`/`a2:` namespace question (Q3/Q4) — not a

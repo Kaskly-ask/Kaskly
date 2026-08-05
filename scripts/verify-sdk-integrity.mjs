@@ -17,12 +17,23 @@
 // Runs in `prebuild`. A mismatch FAILS THE BUILD LOUDLY — it must never be
 // a warning, because the whole point is that a silent swap is invisible.
 import { createHash } from "node:crypto";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 /** path -> expected sha256. Update ONLY when deliberately upgrading the
  * SDK, and only alongside a re-verification against the upstream release. */
 const PINS = {
+  // A6 (fourth audit): pinning only the code files was bypassable. An
+  // attacker with write access to vendor/ — exactly the capability this
+  // check exists to defend against — dropped an UNPINNED entry module and
+  // repointed package.json's "main"/"module" at it. The pinned files were
+  // untouched, every hash matched, and the build printed green while
+  // Keypair.random() was backdoored. The file that decides WHICH file
+  // loads must be pinned too.
+  "vendor/kaspa-wasm32-sdk/web/kaspa/package.json":
+    "5edd2e0a69732e00946d10482e86f35b386a22b87d00059bc9ef97eeb5196709",
+  "vendor/kaspa-wasm32-sdk/nodejs/kaspa/package.json":
+    "f200a3dcc702735e41a70b72af2f6cc99dd970579d198cc9f1fdb2e532d0c479",
   "vendor/kaspa-wasm32-sdk/web/kaspa/kaspa_bg.wasm":
     "5f90736c80721027ecea1a51509005ebb37a434857fb4882ff03b20b24b923a9",
   "vendor/kaspa-wasm32-sdk/nodejs/kaspa/kaspa_bg.wasm":
@@ -37,6 +48,20 @@ const PINS = {
  * vendor source would leave the actually-shipped file unchecked. */
 const COPY_OF = {
   "public/kaspa_bg.wasm": "vendor/kaspa-wasm32-sdk/web/kaspa/kaspa_bg.wasm",
+};
+
+/** A6: pinning is necessary but not sufficient — an attacker can ADD a
+ * file rather than modify one. Each SDK directory must contain EXACTLY
+ * these entries; anything unexpected fails the build. */
+const EXPECTED_DIR_CONTENTS = {
+  "vendor/kaspa-wasm32-sdk/web/kaspa": [
+    "LICENSE", "README.md", "kaspa.d.ts", "kaspa.js",
+    "kaspa_bg.wasm", "kaspa_bg.wasm.d.ts", "package.json",
+  ],
+  "vendor/kaspa-wasm32-sdk/nodejs/kaspa": [
+    "LICENSE", "README.md", "kaspa.d.ts", "kaspa.js",
+    "kaspa_bg.wasm", "kaspa_bg.wasm.d.ts", "package.json",
+  ],
 };
 
 function sha256(file) {
@@ -82,7 +107,28 @@ for (const [rel, sourceRel] of Object.entries(COPY_OF)) {
   }
 }
 
-console.log("SDK integrity check (F27):");
+// A6: no-unexpected-files rule.
+for (const [dir, expected] of Object.entries(EXPECTED_DIR_CONTENTS)) {
+  const abs = path.resolve(process.cwd(), dir);
+  if (!existsSync(abs)) {
+    failed = true;
+    report.push(`  MISSING  ${dir}/ (directory)`);
+    continue;
+  }
+  const actual = readdirSync(abs).sort();
+  const want = [...expected].sort();
+  const extra = actual.filter((f) => !want.includes(f));
+  const missing = want.filter((f) => !actual.includes(f));
+  if (extra.length || missing.length) {
+    failed = true;
+    if (extra.length) report.push(`  UNEXPECTED FILES in ${dir}/: ${extra.join(", ")}`);
+    if (missing.length) report.push(`  MISSING FILES in ${dir}/: ${missing.join(", ")}`);
+  } else {
+    report.push(`  ok       ${dir}/ (${actual.length} files, none unexpected)`);
+  }
+}
+
+console.log("SDK integrity check (F27 + A6):");
 console.log(report.join("\n"));
 
 if (failed) {
