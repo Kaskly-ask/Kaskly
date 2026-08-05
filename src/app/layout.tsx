@@ -48,7 +48,20 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      {/* suppressHydrationWarning is scoped to THIS element on purpose.
+          Browser extensions (password managers, scanners) mutate <body>
+          before React hydrates — ours injects `__processed_<uuid>__="true"`
+          — which React reports as a mismatch even though the server HTML is
+          correct: a curl of production returns exactly
+          `<body class="min-h-full flex flex-col">`, and nothing in this
+          repo writes that attribute.
+          The flag covers only this element's own attributes, NOT its
+          subtree, so genuine mismatches deeper in the app still surface.
+          That matters: this same investigation found a REAL mismatch
+          (unpinned toLocaleString on the compose form), and constant
+          extension noise is exactly how such a thing gets scrolled past.
+          Do NOT widen this, and do not reach for a global suppression. */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <WalletProvider>
           <ChainProvider>
             <ActivityProvider>

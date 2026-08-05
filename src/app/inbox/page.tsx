@@ -171,11 +171,12 @@ function InboxItem({
             <span
               className={`text-xs amount ${overLimit ? "text-danger" : "text-faint"}`}
             >
-              {replyBytes.toLocaleString()} / {MAX_MESSAGE_BYTES.toLocaleString()}
+              {replyBytes.toLocaleString("en-US")} /{" "}
+              {MAX_MESSAGE_BYTES.toLocaleString("en-US")}
             </span>
             {overLimit && (
               <span className="text-xs text-danger">
-                Reply too long — max ~{MAX_MESSAGE_BYTES.toLocaleString()}{" "}
+                Reply too long — max ~{MAX_MESSAGE_BYTES.toLocaleString("en-US")}{" "}
                 characters (less with emoji or accented text)
               </span>
             )}

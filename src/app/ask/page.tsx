@@ -209,7 +209,8 @@ export default function ComposePage() {
           <span className="text-xs text-muted">
             Your message{" "}
             <span className={messageOver ? "text-danger" : "text-faint"}>
-              ({messageBytes.toLocaleString()}/{MAX_MESSAGE_BYTES.toLocaleString()},
+              ({messageBytes.toLocaleString("en-US")}/
+              {MAX_MESSAGE_BYTES.toLocaleString("en-US")},
               encrypted — only the recipient can read it)
             </span>
           </span>
@@ -226,7 +227,7 @@ export default function ComposePage() {
           />
           {messageOver && (
             <span className="text-xs text-danger block">
-              Message too long — max ~{MAX_MESSAGE_BYTES.toLocaleString()}{" "}
+              Message too long — max ~{MAX_MESSAGE_BYTES.toLocaleString("en-US")}{" "}
               characters (less with emoji or accented text)
             </span>
           )}

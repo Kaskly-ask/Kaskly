@@ -232,6 +232,11 @@ export function ResolvedAgo({ resolvedAtMs }: { resolvedAtMs: number | null }) {
   return (
     <span
       className="text-muted text-xs amount"
+      // Deliberately NOT locale-pinned, unlike the byte-limit numbers. This
+      // is a timestamp shown to the reader, so their locale is the correct
+      // one; and it cannot cause a hydration mismatch because this
+      // component returns null until an effect sets `nowMs`, so it never
+      // server-renders.
       title={new Date(resolvedAtMs).toLocaleString()}
     >
       {text}
