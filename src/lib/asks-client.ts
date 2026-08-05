@@ -240,6 +240,58 @@ export interface DerivedState {
   resolvedAtMs: number | null;
 }
 
+/** lockTxid -> the ciphertext the chain announced (OPW-1).
+ *
+ * Permanent, and safe to be permanent: a mined transaction's payload never
+ * changes, so one read per Ask per session settles it forever. That keeps
+ * the anchor from becoming a per-cycle round trip on every open Ask. */
+const announcedByLockTxid = new Map<string, string>();
+
+/** Read the ciphertext the lock transaction actually announced.
+ *
+ * Prefers the address history already fetched for the covenant (the lock
+ * pays TO the P2SH, so it is in that history and `RestTxLite` carries the
+ * payload) — that path costs nothing. Falls back to a single transaction
+ * lookup otherwise.
+ *
+ * THROWS if the announcement cannot be read or parsed. "Could not check" is
+ * not "checked and bad": a flaky indexer must make the caller retry, never
+ * silently unverify a real Ask and hide money from its owner. Same rule as
+ * OPW-4. */
+async function announcedCiphertext(
+  lockTxid: string,
+  histByAddr: Map<string, RestTxLite[]>
+): Promise<string> {
+  const cached = announcedByLockTxid.get(lockTxid);
+  if (cached !== undefined) return cached;
+
+  const { parseAskPayload, parseAskPayloadV3 } = await import("./ask");
+  let payload: string | null = null;
+  for (const rows of histByAddr.values()) {
+    const row = rows.find((t) => t.transaction_id === lockTxid);
+    if (row?.payload) {
+      payload = row.payload;
+      break;
+    }
+  }
+  if (!payload) {
+    const tx = await restGet<RestTxLite>(`/transactions/${lockTxid}`);
+    payload = tx.payload;
+  }
+  if (!payload) throw new Error(`lock ${lockTxid} carries no announcement payload`);
+
+  // V3 first, then V2 — the V3 header extends the V2 namespace prefix, so
+  // the other order misreads a V3 announcement as malformed (the same trap
+  // that made rebuild-from-chain drop V3 Asks entirely).
+  const parsed = parseAskPayloadV3(payload) ?? parseAskPayload(payload);
+  if (!parsed || parsed.kind !== "ask") {
+    throw new Error(`lock ${lockTxid} does not carry an ask announcement`);
+  }
+  const message = parsed.envelope.message;
+  announcedByLockTxid.set(lockTxid, message);
+  return message;
+}
+
 export async function deriveStatusFromChain(
   rpc: RpcClient,
   record: AskRecordDto
@@ -294,6 +346,34 @@ export async function deriveStatusFromChain(
   } catch {
     // No covenant version reproduces a funded address: the announcement is
     // not backed by chain state. Fail closed — never surface as real.
+    return {
+      verified: false,
+      status: record.status,
+      claimTxid: record.claimTxid,
+      refundTxid: record.refundTxid,
+      replyCiphertext: null,
+      claimNetSompi: null,
+      resolvedAtMs: null,
+    };
+  }
+
+  // OPW-1 — ANCHOR THE MESSAGE.
+  //
+  // Everything else in this record is already anchored by construction:
+  // sender, recipient, deadline, amount, askId and refundAllowance are all
+  // covenant inputs, so altering any of them changes the P2SH and trial
+  // reconstruction above fails closed. `messageCiphertext` is not a
+  // covenant input — it is the one field with no chain anchor, and it is
+  // the field the human reads. With `/api/asks` unauthenticated (F18),
+  // anyone who knows a real askRef could replace the message of a genuine,
+  // funded Ask and keep every verified badge lit. Because `encryptKasia1`
+  // is a public-key operation over an address-derived key, the substituted
+  // blob decrypts cleanly to text of the attacker's choosing.
+  //
+  // The lock transaction's payload IS the announcement and carries the
+  // ciphertext. Check against that.
+  const announced = await announcedCiphertext(record.lockTxid, histByAddr);
+  if (announced !== record.messageCiphertext) {
     return {
       verified: false,
       status: record.status,

@@ -130,6 +130,25 @@ be marked closed by the wiring work.
 
 All four were PROVEN by the fourth internal pass with passing controls.
 
+**OPW-1 is now FIXED** (2026-08-05). `deriveStatusFromChain` now anchors
+`messageCiphertext` to the lock transaction's announcement payload — the
+one record field that was not a covenant input, and therefore the only one
+an unauthenticated POST could rewrite while every verified badge stayed
+lit. Mismatch ⇒ `verified: false`, never surfaced. A read failure THROWS
+instead of unverifying, so a flaky indexer cannot hide a real Ask.
+Memoised per lockTxid (a mined payload is immutable), so the anchor costs
+one read per Ask per session rather than a round trip per cycle. Proven in
+`tests/unit/opw1-ciphertext-anchor.test.ts` — RED at `9a01ce2` (3 failed /
+2 passed), controls for both versions plus the could-not-check case; live
+regression suite re-run 11/11.
+
+⚠️ **Residual, stated plainly:** the anchor's source is the REST indexer,
+because wRPC exposes no historical transaction lookup. So message integrity
+now rests on the indexer rather than on an unauthenticated POST — the
+attacker set shrinks from "anyone who can reach /api/asks" to "whoever
+operates or can MITM the indexer". That remaining exposure is **OPW-2**,
+still open, and this fix does not close it.
+
 **OPW-4 is now FIXED** (2026-08-05) — it was taken first, ahead of OPW-1,
 because it is the one the V3 wiring ACTIVATED: auto-refunds only started
 firing for real when V3 went live, so the path this silenced is the
@@ -146,7 +165,7 @@ OPEN.
 
 | ID | Defect | Why the migration will not fix it |
 |---|---|---|
-| **OPW-1** | **Unauthenticated POST rewrites the displayed MESSAGE of a chain-verified Ask.** `deriveStatusFromChain` re-verifies sender/recipient/amount/deadline/lockTxid against chain state, but **never `messageCiphertext`** — so a swapped message keeps `verification: "ok"` and the inbox paints "✓ escrowed" over it. Because `encryptKasia1` is a public-key operation and the recipient's x-only key comes from their address, an unauthenticated attacker crafts a blob decrypting to text of their choosing. PoC drove this against a live server: attacker-chosen phishing text under the verified badge. | The migration changes which covenant is built; it does not add auth to `/api/asks`, and it does not bring `messageCiphertext` under chain verification. Extends known-OPEN **F18** from "hide + suppress refund" to **positive content injection**. |
+| **OPW-1** ✅ **FIXED 2026-08-05** | **Unauthenticated POST rewrites the displayed MESSAGE of a chain-verified Ask.** `deriveStatusFromChain` re-verifies sender/recipient/amount/deadline/lockTxid against chain state, but **never `messageCiphertext`** — so a swapped message keeps `verification: "ok"` and the inbox paints "✓ escrowed" over it. Because `encryptKasia1` is a public-key operation and the recipient's x-only key comes from their address, an unauthenticated attacker crafts a blob decrypting to text of their choosing. PoC drove this against a live server: attacker-chosen phishing text under the verified badge. | The migration changes which covenant is built; it does not add auth to `/api/asks`, and it does not bring `messageCiphertext` under chain verification. Extends known-OPEN **F18** from "hide + suppress refund" to **positive content injection**. |
 | **OPW-2** | **A single REST indexer is the sole authority for every settled verdict.** Once the covenant UTXO is gone, the funding fact, spender identity, payload, outputs and block time all come from one unauthenticated host, never cross-checked against wRPC. `RestTxLite.is_accepted` is **declared and never read**. PoC: a hostile indexer produced `refunded` on a real claim (the exact F14 lie through a different door), inflated "Earned" to 9,999 KAS, and made an Ask vanish. | V3 changes the covenant, not the verdict pipeline. `deriveStatusFromChain` reads REST identically for V2 and V3. |
 | **OPW-3** | **50 dust payments evict the rebuild window.** `asks-client.ts` requests `full-transactions?limit=50` with no pagination, and BOTH load-bearing predicates (`funded`, `spender`) must find their rows inside it. Results are newest-first (confirmed against the live indexer), the covenant P2SH is publicly derivable, and anyone may pay to it. PoC: 50 dust rows → `rebuildFromChain` returns `[]`, i.e. **the designated recovery action loses the Ask**. | Distinct mechanism from known-OPEN **F16** (which jams `getCovenantUtxo`); this evicts the REST window and takes recovery with it. The window is version-agnostic. |
 | **OPW-4** ✅ **FIXED 2026-08-05** | **Any RPC error string permanently suppresses auto-refund for the session.** `isChainRejection` matches the bare substring `"RPC Server (remote error)"`, which every remote failure carries; `maybeAutoRefund` converts it to `return null` — the same value meaning "someone else already refunded" — and `activity.tsx` marks the ask attempted BEFORE awaiting, rolling back only in `catch`. `null` does not throw. PoC: attempt 1 attempted, attempts 2–3 skipped, never retried until reload. | The suppression is in the auto-refund effect, untouched by V3. Worse after wiring, not better: the failure it silences is exactly the stranded-refund case. |

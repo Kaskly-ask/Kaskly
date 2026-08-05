@@ -78,6 +78,38 @@ server/cache-layer pass is separate. And Phase 2 is NOT the live proof: no
 chain transaction has been broadcast under V3 through the shipping client.
 That is Phase 3, and `hardened-v1` stays unhanded until it passes.
 
+### OPW-1 CLOSED — the displayed message is now chain-anchored (2026-08-05)
+
+Every other record field is anchored by construction: sender, recipient,
+deadline, amount, askId and refundAllowance are covenant inputs, so
+changing one changes the P2SH and trial reconstruction fails closed.
+`messageCiphertext` is not a covenant input — the single unanchored field,
+and the one the human reads. With `/api/asks` unauthenticated (F18) anyone
+knowing a real askRef could swap it and keep the "✓ escrowed" badge lit;
+because `encryptKasia1` is a public-key operation over an address-derived
+key, the substitute decrypts cleanly to attacker-chosen text.
+
+Fix: check it against the lock transaction's announcement payload.
+Mismatch ⇒ `verified: false`. A read failure THROWS rather than
+unverifying — "could not check" is not "checked and bad", the same rule as
+OPW-4; otherwise one flaky request would hide legitimate Asks and their
+money. Memoised per lockTxid (mined payloads are immutable) so it is one
+read per Ask per session, not a per-cycle round trip. Prefers the address
+history already fetched, which is usually free.
+
+RED at `9a01ce2`: 3 failed / 2 passed. The forged-message cases failed with
+"expected true to be false"; the could-not-check case failed with "promise
+resolved { verified: true } instead of rejecting" — diagnostic in itself,
+since today no read happens at all on that path.
+
+**Residual, recorded not buried:** the anchor reads from the REST indexer,
+as wRPC has no historical transaction lookup. Message integrity therefore
+moves from "anyone who can POST" to "the indexer operator". Strictly
+smaller attacker set, not zero — that remainder is OPW-2.
+
+Gate: lint clean, build clean, 121/121 unit, live suite 11/11 (`c3b9190f`
+V3 lock / `a625c14b` V3 refund / `4b12b63d` V2 lock / `0e7e94f2` V2 refund).
+
 ### OPW-4 CLOSED — transient node error no longer strands a refund (2026-08-05)
 
 Taken FIRST of the four, ahead of OPW-1, on the human's call: OPW-4 is the
