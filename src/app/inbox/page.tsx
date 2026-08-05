@@ -15,7 +15,7 @@ import {
 import { useChain } from "@/lib/chain";
 import { useDecrypted } from "@/lib/use-decrypted";
 import { getNote, setNote } from "@/lib/local-notes";
-import { formatKas } from "@/lib/config";
+import { DAA_PER_SECOND, formatKas } from "@/lib/config";
 import {
   AskCard,
   CollapsibleText,
@@ -205,6 +205,98 @@ function InboxItem({
   );
 }
 
+/** How close counts as "about to refund". */
+const NUDGE_WINDOW_SECS = 2 * 60 * 60;
+
+/**
+ * Pre-expiry nudge — an in-page line when something in this inbox is about
+ * to refund.
+ *
+ * SCOPE, DELIBERATELY SMALL. This is presentation over data the page has
+ * already loaded: the asks in memory and the DAA score the page already
+ * polls. It fires only while this tab is open, adds no timer of its own
+ * (the existing DAA poll re-renders it), and reaches nothing outside the
+ * component.
+ *
+ * It is NOT a notification system. No email, no web push, no service-worker
+ * message, no server-side scheduler, no persistence. Any of those would be
+ * a different project with its own delivery, consent and privacy design —
+ * if this ever needs to reach someone whose tab is CLOSED, stop and design
+ * that separately rather than growing it from here.
+ *
+ * TONE follows the card treatment: for a recipient an approaching deadline
+ * is an opportunity closing, not a fault, so this uses teal and never
+ * `--warn`. It states the fact and the action, and does not scold.
+ */
+function RefundSoonNudge({
+  asks,
+  daaScore,
+}: {
+  asks: LiveAsk[];
+  daaScore: bigint | null;
+}) {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  if (daaScore === null) return null;
+
+  const soon = asks.filter((a) => {
+    if (a.status !== "open" || dismissed.has(a.askRef)) return false;
+    const remaining = Number(BigInt(a.deadline) - daaScore) / Number(DAA_PER_SECOND);
+    return remaining > 0 && remaining <= NUDGE_WINDOW_SECS;
+  });
+  if (soon.length === 0) return null;
+
+  // Coarse on purpose: a ticking clock already lives on each card, and a
+  // second precise countdown would compete with it.
+  const soonestSecs = Math.min(
+    ...soon.map(
+      (a) => Number(BigInt(a.deadline) - daaScore) / Number(DAA_PER_SECOND)
+    )
+  );
+  const approx =
+    soonestSecs >= 3600
+      ? `~${Math.round(soonestSecs / 3600)}h`
+      : `~${Math.max(1, Math.round(soonestSecs / 60))}m`;
+
+  return (
+    <div className="glass-clear rounded-lg px-4 py-3 flex items-start gap-3 animate-fade-in">
+      <p className="text-sm leading-relaxed flex-1">
+        {soon.length === 1 ? (
+          <>
+            <span className="text-teal">This Ask refunds in {approx}.</span>{" "}
+            <span className="text-muted">Reply now to claim it.</span>
+          </>
+        ) : (
+          <>
+            <span className="text-teal">
+              {soon.length} Asks refund within 2 hours
+            </span>
+            <span className="text-muted">
+              {" "}
+              — the soonest in {approx}. Reply to claim them.
+            </span>
+          </>
+        )}
+      </p>
+      <button
+        type="button"
+        onClick={() =>
+          setDismissed((prev) => {
+            const next = new Set(prev);
+            for (const a of soon) next.add(a.askRef);
+            return next;
+          })
+        }
+        // Session-only, and keyed by askRef: dismissing these does not
+        // suppress a DIFFERENT Ask that enters the window later.
+        className="text-xs text-faint hover:text-foreground transition-colors shrink-0"
+        aria-label="Dismiss until a new Ask is close to refunding"
+      >
+        dismiss
+      </button>
+    </div>
+  );
+}
+
 export default function InboxPage() {
   const { wallet, status } = useWallet();
   const { asks, loading, error, daaScore, upsertLocal } = useAsks("recipient");
@@ -228,6 +320,7 @@ export default function InboxPage() {
       )}
       {wallet && loading && <p className="text-muted text-sm">Loading…</p>}
       {error && <p className="text-danger text-sm">{error}</p>}
+      {wallet && <RefundSoonNudge asks={active} daaScore={daaScore} />}
       {wallet && !loading && visible.length === 0 && (
         <p className="text-muted text-sm">
           No Asks yet. New ones appear here automatically while this tab is
