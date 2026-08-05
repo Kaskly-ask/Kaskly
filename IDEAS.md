@@ -53,3 +53,30 @@ material is maintained privately outside the repo._
   against the KNS owner address (sender identity display, anti-phishing).
   Envelope/spec change → explicitly out of current scope; revisit with
   the Kasia team conversation or a v2 spec discussion.
+- **Trending / Top Earners homepage card** (banked 2026-08-05; NOT part of
+  the current security work — record only, build after the honest tag).
+  Rank with the EXISTING Earned computation, but **hide the KAS amount** —
+  show presence ("trending"), not income. Hiding the number is what removes
+  the financial-exposure objection, so it is load-bearing, not styling.
+  - **Opt-in only, from v1.** A wallet appears only if its owner chose to
+    be public. This is a **consent** decision, not an anti-gaming one:
+    never auto-list a real person — especially a featured dev — without
+    them choosing it. Keep it in v1 even though it looks skippable; it is
+    one flag check now and awkward to retrofit once a board exists.
+  - **Rolling ~48h window** so the homepage feels live. The window is for
+    **freshness only** — it is NOT an anti-gaming measure and does not
+    defend against farming.
+  - **Anti-gaming DEFERRED.** Distinct-sender ranking (so self-dealing
+    from alt wallets cannot farm the board) is the known answer, but it is
+    premature with no real users. Revisit if/when someone is actually
+    farming it.
+  - **Provenance caveat.** Earned is derived through the REST indexer read
+    path, so a leaderboard inherits **OPW-2** — a hostile indexer could
+    influence ranking. Acceptable for a testnet showcase; must be stated
+    if it ships, and re-assessed before anything with real money.
+  - Placeholder copy until built: *"Trending experts coming soon — make
+    your Kaskly public to appear here."*
+
+- **Tagline bank** (2026-08-05): *"Attention monetization without the
+  ads."* Candidate site tagline; recorded here as the taglines home until
+  there is a dedicated copy doc.
