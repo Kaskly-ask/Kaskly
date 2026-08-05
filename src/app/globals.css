@@ -8,7 +8,18 @@
   --background: #0a0a0a;
   --foreground: #e8eaea;
   --muted: #9aa0a2;
-  --faint: #6b7072;
+  /* Raised from #6b7072 (2026-08-05, accessibility pass). The old value was
+     3.95:1 on the page and only 3.09:1 on .glass-clear — below WCAG AA's
+     4.5:1 for normal text, and nothing in this app using it is large
+     enough for the 3:1 large-text allowance (biggest is 15px; the
+     allowance starts at 24px).
+     Chosen against the WORST surface, not the page: .glass-clear layers up
+     to 7% + 3.5% white over the background, so text there sits on ~#242424
+     rather than #0a0a0a. #8a9092 measures 6.11:1 on the page and 4.79:1 on
+     glass — AA everywhere it actually renders, while staying a distinct
+     third tier below --muted (7.47 / 5.86). The tiers compress a little;
+     that is the honest cost of AA on a dark theme. */
+  --faint: #8a9092;
   --teal: #49eacb;
   --teal-dim: #2ea38e;
   --card: #121415;

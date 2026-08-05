@@ -161,13 +161,13 @@ export default function LandingPage() {
       <section className="glass-clear rounded-xl p-5 space-y-3">
         <p className="text-sm leading-relaxed">
           <span className="text-foreground">Non-custodial</span>
-          <span className="text-faint"> — keys never leave your browser · </span>
+          <span className="text-muted"> — keys never leave your browser · </span>
           <span className="text-foreground">end-to-end encrypted</span>
-          <span className="text-faint"> messages · </span>
+          <span className="text-muted"> messages · </span>
           <span className="text-foreground">automatic refunds</span>
-          <span className="text-faint"> enforced on-chain · </span>
+          <span className="text-muted"> enforced on-chain · </span>
           <span className="text-foreground">open protocol, open spec</span>
-          <span className="text-faint"> (ISC)</span>
+          <span className="text-muted"> (ISC)</span>
         </p>
         <p className="text-sm">
           <span className="text-[10px] font-semibold tracking-widest text-warn border border-warn/40 rounded px-1.5 py-0.5 bg-background mr-2 align-middle">

@@ -38,7 +38,7 @@ function EarnedWidget() {
       className="hidden sm:flex items-baseline gap-1.5"
       title="Everything you've earned by replying to Asks with this wallet — the sum of your claim transactions, net of network fees, computed from public chain data."
     >
-      <span className="text-[10px] uppercase tracking-widest text-faint">
+      <span className="text-[10px] uppercase tracking-widest text-muted">
         Earned
       </span>
       <span

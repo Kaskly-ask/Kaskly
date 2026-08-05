@@ -417,7 +417,7 @@ export function AskCard({
             ✓ refunded — you paid nothing for silence
           </span>
         )}
-        <span className="text-xs text-faint">
+        <span className="text-xs text-muted">
           {counterpartyLabel}{" "}
           <ContactName
             address={counterpartyAddress}

@@ -191,7 +191,7 @@ function InboxItem({
                 ? "Claiming…"
                 : `Reply & claim ${quote ? `~${formatKas(quote.net)}` : formatKas(BigInt(ask.amountSompi))} TKAS`}
             </button>
-            <span className="text-xs text-faint">
+            <span className="text-xs text-muted">
               {quote
                 ? `Network fee ~${formatKas(quote.fee)} TKAS comes out of the claim. `
                 : ""}

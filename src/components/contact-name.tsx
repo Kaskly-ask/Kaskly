@@ -38,7 +38,7 @@ export function ContactName({
           placeholder="name this contact"
           className="bg-card-raised border border-teal/40 rounded px-1.5 py-0.5 text-xs w-36 focus:outline-none"
         />
-        <span className="font-mono text-faint text-[10px]" title={address}>
+        <span className="font-mono text-muted text-[10px]" title={address}>
           {shortAddress(address)}
         </span>
       </span>
@@ -50,7 +50,7 @@ export function ContactName({
       {name ? (
         <>
           <span className="text-muted">{name}</span>
-          <span className="font-mono text-faint text-[10px]" title={address}>
+          <span className="font-mono text-muted text-[10px]" title={address}>
             {shortAddress(address)}
           </span>
         </>
