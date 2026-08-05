@@ -22,6 +22,10 @@ import {
   toHex,
   type AskEnvelope,
 } from "./ask/protocol";
+import {
+  parseAskPayloadV3,
+  type AskEnvelopeV3,
+} from "./ask/protocol-v3";
 
 export interface RestFullTx {
   transaction_id: string;
@@ -80,6 +84,57 @@ function candidateFromEnvelope(
   };
 }
 
+/** V3 announcements carry the covenant parameters outright: the per-Ask
+ * askId and refundAllowance (which replaced the global constant), and the
+ * locked amount, which V2 left implicit as minRefund + that constant. */
+function candidateFromEnvelopeV3(
+  lockTxid: string,
+  env: AskEnvelopeV3
+): AskRecordDto {
+  return {
+    askRef: lockTxid,
+    protocolVersion: 2,
+    askId: env.askId,
+    refundAllowance: env.refundAllowance,
+    senderAddress: env.sender,
+    recipientAddress: env.recipient,
+    amountSompi: env.amountSompi,
+    messageCiphertext: env.message,
+    deadline: env.deadlineDaa,
+    lockTxid,
+    claimTxid: null,
+    refundTxid: null,
+    status: "open",
+  };
+}
+
+/** Parse one ask-namespace payload under EITHER version.
+ *
+ * V3 first, then V2. The V3 announce header (`ciph_msg:1:ask:a2:`) extends
+ * the V2 namespace prefix, so a V3 payload reaches the V2 parser looking
+ * merely malformed — and rebuild's catch would skip it in silence. Trying
+ * V3 first removes that ambiguity; parseAskPayloadV3 returns null (rather
+ * than throwing) for anything outside its own namespace, which is what
+ * makes the fallback safe. */
+function parseEither(
+  payloadHex: string
+):
+  | { kind: "ask"; candidate: (lockTxid: string) => AskRecordDto }
+  | { kind: "reply"; ref: string }
+  | null {
+  const v3 = parseAskPayloadV3(payloadHex);
+  if (v3) {
+    return v3.kind === "ask"
+      ? { kind: "ask", candidate: (id) => candidateFromEnvelopeV3(id, v3.envelope) }
+      : { kind: "reply", ref: v3.envelope.ref };
+  }
+  const v2 = parseAskPayload(payloadHex);
+  if (!v2) return null;
+  return v2.kind === "ask"
+    ? { kind: "ask", candidate: (id) => candidateFromEnvelope(id, v2.envelope) }
+    : { kind: "reply", ref: v2.envelope.ref };
+}
+
 export interface HistoryScan {
   /** Ask announcements in this history involving ownAddress. */
   candidates: AskRecordDto[];
@@ -100,15 +155,18 @@ export function scanHistory(
     const payload = tx.payload ?? "";
     if (!payload.startsWith(PREFIX_HEX)) continue;
     try {
-      const parsed = parseAskPayload(payload);
+      const parsed = parseEither(payload);
       if (!parsed) continue;
       if (parsed.kind === "ask") {
-        const env = parsed.envelope;
-        if (env.sender === ownAddress || env.recipient === ownAddress) {
-          candidates.push(candidateFromEnvelope(tx.transaction_id, env));
+        const candidate = parsed.candidate(tx.transaction_id);
+        if (
+          candidate.senderAddress === ownAddress ||
+          candidate.recipientAddress === ownAddress
+        ) {
+          candidates.push(candidate);
         }
       } else {
-        replyRefs.push(parsed.envelope.ref.toLowerCase());
+        replyRefs.push(parsed.ref.toLowerCase());
       }
     } catch {
       /* malformed per §2.3 — client-rejected, skip */
@@ -133,11 +191,14 @@ export async function rebuildFromChain(
     known.add(ref);
     try {
       const lockTx = await restGet<RestFullTx>(`/transactions/${ref}`);
-      const parsed = lockTx.payload ? parseAskPayload(lockTx.payload) : null;
+      const parsed = lockTx.payload ? parseEither(lockTx.payload) : null;
       if (parsed?.kind === "ask") {
-        const env = parsed.envelope;
-        if (env.sender === ownAddress || env.recipient === ownAddress) {
-          candidates.push(candidateFromEnvelope(ref, env));
+        const candidate = parsed.candidate(ref);
+        if (
+          candidate.senderAddress === ownAddress ||
+          candidate.recipientAddress === ownAddress
+        ) {
+          candidates.push(candidate);
         }
       }
     } catch {
