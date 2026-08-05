@@ -5,7 +5,7 @@
   "scripts": {
     "predev": "node scripts/copy-wasm.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/copy-wasm.mjs",
+    "prebuild": "node scripts/verify-sdk-integrity.mjs && node scripts/copy-wasm.mjs && node scripts/verify-sdk-integrity.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

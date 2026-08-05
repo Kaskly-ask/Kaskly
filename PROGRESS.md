@@ -945,6 +945,55 @@ defence-in-depth against key exfiltration — needs a nonce strategy
 compatible with Next's inline bootstrap and was deliberately NOT attempted
 rather than shipped half-configured and reported as done. F19 stays open.
 
+### F27 FIXED (2026-08-05) — both halves, each with a NEGATIVE proof
+
+The artifact was already confirmed clean, so this adds the mechanism. Both
+halves were proven to FIRE, not merely to exist — a mechanism that cannot
+fail is F28's tautological proof all over again.
+
+**Half 1 — build-time integrity.** `scripts/verify-sdk-integrity.mjs` pins
+per-file SHA256s for the four vendored SDK artifacts AND the served copy at
+`public/kaspa_bg.wasm` (verifying only the vendor source would leave the
+actually-shipped file unchecked). Wired into `prebuild`, running BEFORE and
+AFTER the copy step. The hashes were independently recomputed this session
+and match the third audit's byte-comparison against the official upstream
+release.
+
+NEGATIVE PROOF — one byte corrupted at offset 1,000,000 of the web wasm:
+```
+MISMATCH vendor/kaspa-wasm32-sdk/web/kaspa/kaspa_bg.wasm
+  expected 5f90736c80721027ecea1a51509005ebb37a434857fb4882ff03b20b24b923a9
+  actual   73330d0a53c7fb52640ceeb4ce81ac4f4d4b9ad0d31406b5ec9676224f3bb8a6
+*** BUILD ABORTED ***            verify exit=1     npm run build exit=1
+```
+The BUILD aborts, not just the script. File restored; `git status vendor/`
+clean afterwards.
+
+**Half 2 — SW revalidation.** `/kaspa_bg.wasm` moves from cache-first to
+network-first with cache fallback. `/_next/static/**` stays cache-first
+because build-ID URLs already make it self-healing.
+
+NEGATIVE PROOF — `audit/sw-poison-poc.mjs` drives the REAL `public/sw.js`
+fetch handler in a mock SW environment, and reconstructs the OLD handler
+from the same source so the comparison is like-for-like:
+```
+OLD (cache-first)      served POISONED  -> POISON PERSISTS, redeploy did NOT evict
+NEW (network-first)    served CORRECTED, cached CORRECTED -> POISON EVICTED
+NEW, offline           served from cache -> offline use preserved (accepted trade)
+```
+
+**Accepted trade, stated:** network-first means the wasm is re-fetched on
+each load rather than served from the SW cache. HTTP caching still applies,
+and offline use falls back to the cached copy — including, unavoidably, a
+poisoned one while offline. For a binary that generates private keys, a
+one-load-later correction beats a permanent one.
+
+**NOT claimed:** this does not verify the wasm at RUNTIME in the browser.
+`WebAssembly.instantiateStreaming` has no SRI equivalent, so a compromised
+SERVER can still serve a bad binary to a fresh visitor — the build check
+protects the repo→build path, not the build→browser path. Closing that
+needs a runtime hash check before `init()`, which is not implemented.
+
 ### THIRD AUDIT — below the covenant (F24-F32), 2026-08-05, vs tag `covenant-v3.1` (8b1485e)
 
 Three exploit-framed audits of the layers the first two passes ASSUMED

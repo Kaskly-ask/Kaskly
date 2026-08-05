@@ -34,10 +34,46 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return; // chain/REST/KNS: untouched
   if (url.pathname.startsWith("/api/")) return; // money state: always network
 
-  // Immutable assets: cache-first (the 11.5 MB wasm is the big win).
+  // F27 — the WASM is NOT treated as immutable.
+  //
+  // It was served cache-first with no revalidation, under a VERSION
+  // constant that never changed per deploy. That made a single poisoned
+  // response PERMANENT: a corrected redeploy could not evict it (sw.js
+  // byte-identical so the SW never updated, VERSION unchanged so the
+  // activate purge never fired, URL unchanged so no fresh fetch occurred).
+  // Only "clear site data" recovered — and the same mechanism meant a
+  // legitimate SDK security patch never reached returning users.
+  //
+  // This binary generates private keys and signs transactions, so it gets
+  // network-first with cache fallback: a corrected deploy replaces a bad
+  // cached copy on the very next load, while offline use still works.
+  // /_next/static/** stays cache-first because each deploy mints new
+  // build-ID URLs, so those entries self-heal already.
+  if (url.pathname === "/kaspa_bg.wasm") {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(VERSION);
+        try {
+          const res = await fetch(request, { cache: "no-cache" });
+          if (res.ok) {
+            cache.put(request, res.clone());
+            return res;
+          }
+          const stale = await cache.match(request);
+          return stale || res;
+        } catch (err) {
+          const stale = await cache.match(request);
+          if (stale) return stale;
+          throw err;
+        }
+      })()
+    );
+    return;
+  }
+
+  // Immutable assets: cache-first (build-ID URLs make these self-healing).
   if (
     url.pathname.startsWith("/_next/static/") ||
-    url.pathname === "/kaspa_bg.wasm" ||
     url.pathname.startsWith("/icons/")
   ) {
     event.respondWith(
