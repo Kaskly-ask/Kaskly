@@ -141,11 +141,14 @@ export function buildRefundTransactionV3(params: RefundV3Params): Transaction {
   const input = BigInt(params.covenantUtxo.amount);
   const floor = input - params.refundAllowance;
 
+  // A1: price the sig script THIS function is about to emit, not a constant.
+  const emittedSig = refundSigScript(params.redeemScriptHex);
   const { fee } = solveRefundFee({
     networkId: params.networkId,
     amountSompi: input,
     senderAddress: params.senderAddress,
     utxoTemplate: () => params.covenantUtxo,
+    sigScriptBytes: emittedSig.length / 2,
   });
 
   const amount = input - fee;

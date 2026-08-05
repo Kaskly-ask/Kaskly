@@ -7,11 +7,8 @@
 // F13 describes. That requirement is asserted here rather than left as a
 // comment, including at 0.1 KAS, the measured non-convergence point.
 import { describe, it, expect } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
 import {
   payToAddressScript,
-  ScriptBuilder,
   createTransaction,
   calculateTransactionFee,
   type IUtxoEntry,
@@ -21,7 +18,8 @@ import {
   isAskAmountViable,
   FeeSolveRefusal,
   ALLOWANCE_MARGIN,
-  V3_REFUND_SIGSCRIPT_BYTES,
+  V3_REFUND_SIGSCRIPT_UPPER_BOUND,
+  refundSigScriptBytes,
 } from "../../src/lib/ask/fees-v3";
 
 const NETWORK_ID = "testnet-10";
@@ -42,6 +40,16 @@ const solve = (amountSompi: bigint) =>
   solveRefundFee({ networkId: NETWORK_ID, amountSompi, senderAddress: SENDER, utxoTemplate });
 
 /** The exact refund shape the solver prices and the builder emits. */
+function buildRefundShapeAt(deadlineDaa: bigint, input: bigint, output: bigint) {
+  const tx = createTransaction([utxoTemplate(input)], [{ address: SENDER, amount: output }], 0n, undefined, 0);
+  tx.lockTime = deadlineDaa;
+  tx.inputs[0].sequence = 0n;
+  tx.inputs[0].signatureScript = "00".repeat(
+    refundSigScriptBytes({ deadlineDaa, refundAllowance: 318_400n, recipientXOnlyHex: "ab".repeat(32), senderAddress: SENDER })
+  );
+  return tx;
+}
+
 function buildRefundShape(input: bigint, output: bigint) {
   const tx = createTransaction(
     [utxoTemplate(input)],
@@ -52,7 +60,7 @@ function buildRefundShape(input: bigint, output: bigint) {
   );
   tx.lockTime = 100_000n;
   tx.inputs[0].sequence = 0n;
-  tx.inputs[0].signatureScript = "00".repeat(V3_REFUND_SIGSCRIPT_BYTES);
+  tx.inputs[0].signatureScript = "00".repeat(V3_REFUND_SIGSCRIPT_UPPER_BOUND);
   return tx;
 }
 
@@ -96,21 +104,43 @@ describe("V3 refund fee solving (F13/F21)", () => {
     }
   });
 
-  it("the sigscript template matches the REAL V3 refund sig script", () => {
-    // Second audit finding 2: this constant was 117 (the V2 shape) while
-    // V3's real script was 169, so the solver priced a transaction 52
-    // bytes smaller than the one broadcast — it would have produced
-    // unbroadcastable refunds as soon as fee rates rose. It has now
-    // drifted twice, so derive the truth from the committed golden vector
-    // rather than trusting the number on sight.
-    const vector = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), "spike", "v3-golden-vector.json"), "utf8")
-    );
-    const real = new ScriptBuilder()
-      .addData(Buffer.from([]))
-      .addData(Buffer.from(vector.redeemScriptHex, "hex"))
-      .drain();
-    expect(V3_REFUND_SIGSCRIPT_BYTES).toBe(real.length / 2);
+  it("prices the ACTUAL emitted refund at a PRODUCTION deadline (A1)", () => {
+    // A1: the old constant 172 was measured from the golden vector, whose
+    // deadlineDaa = 1_000_000 is a 3-byte script number. Live DAA is 9
+    // digits -> 4-byte push -> the real sig script is LONGER, and every
+    // production refund was under-priced by 100 sompi. This test uses a
+    // PRODUCTION deadline on purpose; asserting against the vector is what
+    // hid the bug for two audits.
+    const PROD_DEADLINE = 535_656_266n; // live TN10 magnitude, +7d from anchor
+    const solved = solveRefundFee({
+      networkId: NETWORK_ID,
+      amountSompi: KAS,
+      senderAddress: SENDER,
+      utxoTemplate,
+      sigScriptBytes: refundSigScriptBytes({
+        deadlineDaa: PROD_DEADLINE,
+        refundAllowance: 318_400n,
+        recipientXOnlyHex: "ab".repeat(32),
+        senderAddress: SENDER,
+      }),
+    });
+    // The emitted transaction must be affordable AT THE SOLVED FEE.
+    const emitted = buildRefundShapeAt(PROD_DEADLINE, KAS, KAS - solved.fee);
+    const required = calculateTransactionFee(NETWORK_ID, emitted)!;
+    expect(required).toBeLessThanOrEqual(solved.fee);
+    // And the old constant must be provably insufficient here.
+    const underpriced = solveRefundFee({
+      networkId: NETWORK_ID, amountSompi: KAS, senderAddress: SENDER, utxoTemplate,
+      sigScriptBytes: 172,
+    });
+    expect(underpriced.fee).toBeLessThan(required);
+  });
+
+  it("a production deadline yields a LONGER sig script than the golden vector", () => {
+    const args = { refundAllowance: 318_400n, recipientXOnlyHex: "ab".repeat(32), senderAddress: SENDER };
+    const vector = refundSigScriptBytes({ ...args, deadlineDaa: 1_000_000n });
+    const prod = refundSigScriptBytes({ ...args, deadlineDaa: 535_656_266n });
+    expect(prod).toBeGreaterThan(vector);
   });
 
   it("SOLVES: returns the real minimum, not its own starting guess", () => {

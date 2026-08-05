@@ -19,10 +19,18 @@
 // iterate: doing so produces an unbroadcastable refund and strands funds,
 // which is the very bug being fixed.
 //
-// PARITY: spike/lib.cjs solveSpendFee implements the same algorithm for
-// the CJS probes. tests/unit/fees-v3.test.ts pins the boundary values so
-// the two cannot silently diverge.
-import { calculateTransactionFee, createTransaction, type IUtxoEntry } from "kaspa-wasm";
+// PARITY (corrected 2026-08-05, A1): spike/lib.cjs prices the REAL
+// transaction it is about to broadcast. This module now does the same via
+// `sigScriptBytes` — the earlier claim of parity was false while this file
+// priced a constant-sized shape, which is exactly why every chain proof
+// passed while the shipped module under-paid.
+import {
+  calculateTransactionFee,
+  createTransaction,
+  ScriptBuilder,
+  type IUtxoEntry,
+} from "kaspa-wasm";
+import { buildAskRedeemScriptV3 } from "./covenant-v3";
 
 /** Iteration cap. Reaching it is a REFUSAL, not a result. */
 export const FEE_SOLVE_MAX_ITERS = 12;
@@ -38,20 +46,16 @@ export const FEE_SOLVE_MAX_ITERS = 12;
 export const ALLOWANCE_MARGIN = 4n;
 
 /**
- * Byte length of the REAL V3 sig-less refund signature script:
- *   push(<empty selector>) ‖ push(redeemScript)
- * with the current 169-byte V3 redeem script.
+ * Conservative UPPER BOUND on the refund sig script, used only when a
+ * caller cannot supply the real figure. Deliberately generous: the two
+ * variable pushes (`deadlineDaa`, `refundAllowance`) are at most 9 bytes
+ * each including their length prefix, so 180 covers any production Ask.
+ * Over-paying a few sompi is recoverable; under-paying strands the funds.
  *
- * This was WRONG twice (second audit, finding 2): it was hardcoded at 117
- * — the V2 shape — while V3's real script was 169, so the solver priced a
- * transaction 52 bytes smaller than the one actually broadcast. The pin
- * then grew again to 172 when OpTxInputCount was added to the claim
- * branch. A constant that has drifted twice must not be trusted on
- * inspection, so tests/unit/fees-v3.test.ts asserts this equals the length
- * derived from the committed golden vector's redeem script, and fails
- * loudly if the script changes again.
+ * Replaces `V3_REFUND_SIGSCRIPT_BYTES = 172`, which was measured from the
+ * golden vector's 3-byte deadline and under-priced every real Ask (A1).
  */
-export const V3_REFUND_SIGSCRIPT_BYTES = 172;
+export const V3_REFUND_SIGSCRIPT_UPPER_BOUND = 180;
 
 export class FeeSolveRefusal extends Error {
   constructor(
@@ -62,6 +66,38 @@ export class FeeSolveRefusal extends Error {
     super(message);
     this.name = "FeeSolveRefusal";
   }
+}
+
+/**
+ * Byte length of the REAL sig script `buildRefundTransactionV3` emits for
+ * a given Ask: `push(<empty>) ‖ push(redeemScript)`.
+ *
+ * A1 (fourth audit) — WHY THIS IS A FUNCTION AND NOT A CONSTANT. The
+ * redeem script contains two VARIABLE-LENGTH script-number pushes:
+ * `addLockTime(deadlineDaa)` and `addI64(refundAllowance)`. The old
+ * constant 172 was measured from the golden vector, whose
+ * `deadlineDaa = 1_000_000` is a 3-byte number. Live DAA scores are
+ * 9 digits — a 4-byte push — so every production refund was priced 1 byte
+ * short and under-paid by 100 sompi. The anti-drift test asserted against
+ * that same vector, so it could never catch it.
+ *
+ * The measurement is deliberately biased UPWARD: over-estimating costs a
+ * few sompi of fee, under-estimating produces an unbroadcastable refund.
+ */
+export function refundSigScriptBytes(params: {
+  deadlineDaa: bigint;
+  refundAllowance: bigint;
+  recipientXOnlyHex: string;
+  senderAddress: string;
+}): number {
+  // askId is a FIXED 32 bytes, so its value cannot change the measurement —
+  // only the two variable-length numeric pushes can.
+  const redeem = buildAskRedeemScriptV3({ ...params, askIdHex: "00".repeat(32) });
+  const sig = new ScriptBuilder()
+    .addData(new Uint8Array(0))
+    .addData(Buffer.from(redeem.toString(), "hex"))
+    .drain();
+  return sig.length / 2;
 }
 
 export interface RefundFeeSolution {
@@ -87,8 +123,15 @@ export function solveRefundFee(params: {
   senderAddress: string;
   /** A UTXO shape to measure against; only its amount and SPK matter. */
   utxoTemplate: (amount: bigint) => IUtxoEntry;
+  /** Byte length of the sig script the refund will ACTUALLY carry (A1).
+   * Callers that know the covenant MUST pass it — see
+   * `refundSigScriptBytes`. Omitting it falls back to a conservative
+   * upper bound rather than the old vector-derived constant, so a caller
+   * that forgets over-pays instead of stranding funds. */
+  sigScriptBytes?: number;
 }): RefundFeeSolution {
   const { networkId, amountSompi, senderAddress, utxoTemplate } = params;
+  const sigBytes = params.sigScriptBytes ?? V3_REFUND_SIGSCRIPT_UPPER_BOUND;
   const trace: string[] = [];
   const seen = new Set<bigint>();
   let guess = 100_000n;
@@ -113,7 +156,7 @@ export function solveRefundFee(params: {
     tx.inputs[0].sequence = 0n;
     // Must match the sig script the refund builder ACTUALLY emits, or the
     // solver prices a different transaction than the one broadcast.
-    tx.inputs[0].signatureScript = "00".repeat(V3_REFUND_SIGSCRIPT_BYTES);
+    tx.inputs[0].signatureScript = "00".repeat(sigBytes);
 
     const required = calculateTransactionFee(networkId, tx);
     trace.push(`${guess}->${required === undefined ? "none" : required}`);
