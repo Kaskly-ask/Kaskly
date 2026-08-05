@@ -22,8 +22,6 @@ export interface WalletState {
   publicKey: string;
   /** Hex private key — browser-only, testnet-only. */
   privateKey: string;
-  /** Result of the connect-time sign/verify ownership proof. */
-  proofOk: boolean;
 }
 
 const STORAGE_KEY = "kaskly.wallet.v1";
@@ -80,27 +78,47 @@ interface WalletContextValue {
   /** "loading" while restoring a stored key on first mount. */
   status: "loading" | "disconnected" | "connected";
   generate: () => Promise<WalletState>;
-  importKey: (privateKeyHex: string) => Promise<WalletState>;
+  /** `expectedAddress` is optional; when given, an import that opens a
+   * different address is REFUSED (F28 — the only non-circular check). */
+  importKey: (
+    privateKeyHex: string,
+    expectedAddress?: string
+  ) => Promise<WalletState>;
   disconnect: () => void;
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
+/**
+ * F28 — the removed ceremony, and what replaced it.
+ *
+ * This used to sign `kaskly-ownership-proof:${address}` and verify it
+ * against a keypair derived from THE SAME private key, then render
+ * "✓ key ownership verified by signature". The verifier was the signer:
+ * PoC showed 500/500 random keys pass and `false` was unreachable, so the
+ * `if (!proofOk) throw` guard was dead code and the green check attested
+ * only that the SDK works.
+ *
+ * A signature round-trip cannot be made meaningful here, because the
+ * address is DERIVED from the key under test — there is no external
+ * reference to disagree with. A mistyped hex key is usually still a valid
+ * key; it simply opens a different wallet. The only check that catches a
+ * real import error is comparing the derived address against one the user
+ * independently expects, which is why `importKey` now takes an optional
+ * `expectedAddress` (see below). Ceremony removed rather than dressed up.
+ */
 async function openWallet(privateKeyHex: string): Promise<WalletState> {
   await ensureKaspaReady();
-  const { Keypair, PrivateKey, signMessage, verifyMessage } = await import(
-    "kaspa-wasm"
-  );
+  const { Keypair, PrivateKey } = await import("kaspa-wasm");
   const keypair = Keypair.fromPrivateKey(new PrivateKey(privateKeyHex));
   const address = keypair.toAddress(NETWORK_ID).toString();
-  const message = `kaskly-ownership-proof:${address}`;
-  const signature = signMessage({ message, privateKey: privateKeyHex });
-  const proofOk = verifyMessage({
-    message,
-    signature,
-    publicKey: keypair.publicKey,
-  });
-  return { address, publicKey: keypair.publicKey, privateKey: privateKeyHex, proofOk };
+  return { address, publicKey: keypair.publicKey, privateKey: privateKeyHex };
+}
+
+/** Normalise for comparison: addresses are case-insensitive bech32 and
+ * users paste them with stray whitespace. */
+export function addressesMatch(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -134,7 +152,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connectWith = useCallback(async (privateKeyHex: string) => {
     const w = await openWallet(privateKeyHex);
-    if (!w.proofOk) throw new Error("ownership proof failed for this key");
     window.localStorage.setItem(STORAGE_KEY, privateKeyHex);
     setWallet(w);
     setStatus("connected");
@@ -148,16 +165,31 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [connectWith]);
 
   const importKey = useCallback(
-    (privateKeyHex: string) => {
+    async (privateKeyHex: string, expectedAddress?: string) => {
       const cleaned = sanitizeKeyInput(privateKeyHex);
       if (!PRIVATE_KEY_RE.test(cleaned)) {
-        return Promise.reject(
-          new Error(
-            `A private key is 64 hex characters — got ${cleaned.length}${
-              /[^0-9a-fA-F]/.test(cleaned) ? " (with non-hex characters)" : ""
-            }. Copy just the key value, without quotes.`
-          )
+        throw new Error(
+          `A private key is 64 hex characters — got ${cleaned.length}${
+            /[^0-9a-fA-F]/.test(cleaned) ? " (with non-hex characters)" : ""
+          }. Copy just the key value, without quotes.`
         );
+      }
+      // F28 — the ONLY non-circular check available on import. A mistyped
+      // key is usually still a valid key, so it silently opens a DIFFERENT
+      // wallet; nothing derived from the key alone can notice. Comparing
+      // against an address the user independently expects is what actually
+      // catches a corrupt or mistyped import. Optional: a user importing a
+      // key they only hold as a key has nothing to compare against.
+      if (expectedAddress && expectedAddress.trim()) {
+        const candidate = await openWallet(cleaned);
+        if (!addressesMatch(candidate.address, expectedAddress)) {
+          throw new Error(
+            `That key does not open the address you expected.\n` +
+              `  expected: ${expectedAddress.trim()}\n` +
+              `  this key: ${candidate.address}\n` +
+              `The key is valid, but it is a DIFFERENT wallet — check for a typo before continuing.`
+          );
+        }
       }
       return connectWith(cleaned);
     },

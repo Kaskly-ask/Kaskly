@@ -945,6 +945,39 @@ defence-in-depth against key exfiltration — needs a nonce strategy
 compatible with Next's inline bootstrap and was deliberately NOT attempted
 rather than shipped half-configured and reported as done. F19 stays open.
 
+### F28 FIXED (2026-08-05) — ceremony removed, real check added
+
+**Deciding question (human): are keys imported, or only generated?** Both —
+`wallet-panel.tsx` offers "Create testnet wallet" AND an import field. So
+per the rule, implement rather than merely delete.
+
+**But the described check would still have been circular.** Signing a
+challenge and verifying against "the address pubkey" is meaningless when
+the address is DERIVED from the key under test — which is exactly what the
+old code did. A mistyped hex key is usually still a VALID key; it silently
+opens a different wallet, and nothing derived from the key alone can
+notice. A real check needs an EXTERNAL reference.
+
+**Shipped:** `importKey(hex, expectedAddress?)` — optional; when given, an
+import that opens a different address is REFUSED with both addresses shown.
+The self-verifying ceremony (`signMessage`/`verifyMessage`/`proofOk`) is
+deleted, along with the "✓ key ownership verified by signature" string and
+the dead `if (!proofOk) throw`.
+
+`tests/unit/wallet-import.test.ts` (5) asserts the NEGATIVE case FIRST — a
+valid key opening a different address is rejected — plus paste tolerance
+(whitespace, case, trailing newline) and truncation rejection. A guard test
+asserts the ceremony cannot return: no `signMessage(`/`verifyMessage(`/
+`proofOk` in wallet.tsx, checked against COMMENT-STRIPPED source so the
+explanation of the removal survives while the mechanism cannot.
+
+TRACE row replaced (not silently re-greened): the old row is struck through
+as WITHDRAWN and a new row records what is now actually verified.
+
+**Residual, stated:** a user importing a key they hold ONLY as a key has no
+address to compare against, so the check is optional and does nothing for
+them. That is inherent — there is no external reference in that case.
+
 ### F27 FIXED (2026-08-05) — both halves, each with a NEGATIVE proof
 
 The artifact was already confirmed clean, so this adds the mechanism. Both

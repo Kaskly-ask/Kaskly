@@ -16,6 +16,7 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
   const { wallet, generate, importKey, disconnect } = useWallet();
   const { getRpc } = useChain();
   const [importValue, setImportValue] = useState("");
+  const [expectedAddress, setExpectedAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Live format check (beta finding): quotes/whitespace from JSON pastes
@@ -108,15 +109,12 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
               <span className="amount font-semibold">
                 {balance === null ? "…" : `${formatKas(balance)} TKAS`}
               </span>
-              <span
-                className={
-                  wallet.proofOk ? "text-teal text-xs" : "text-danger text-xs"
-                }
-              >
-                {wallet.proofOk
-                  ? "✓ key ownership verified by signature"
-                  : "ownership proof FAILED"}
-              </span>
+              {/* F28 — this used to read "✓ key ownership verified by
+                  signature", from a check that signed with a key and
+                  verified against that same key's pubkey. It could not
+                  fail (500/500 random keys passed) and attested only that
+                  the SDK works. Removed rather than restyled: a green
+                  check that verifies nothing is worse than no check. */}
             </div>
             <ShareAsk address={wallet.address} />
             <ContactsList />
@@ -269,11 +267,26 @@ export function WalletPanel({ onClose }: { onClose: () => void }) {
               />
               <button
                 disabled={busy || !keyLooksValid}
-                onClick={() => run(() => importKey(importValue))}
+                onClick={() => run(() => importKey(importValue, expectedAddress))}
                 className="px-3 py-1.5 rounded-md border border-border text-xs text-muted hover:text-foreground disabled:opacity-50"
               >
                 Import
               </button>
+            </div>
+            {/* F28 — the only non-circular import check. A mistyped key is
+                usually still VALID: it silently opens a different wallet.
+                Nothing derived from the key alone can catch that, so the
+                check needs an address the user independently expects. */}
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                value={expectedAddress}
+                onChange={(e) => setExpectedAddress(e.target.value)}
+                placeholder="optional: the address this key should open"
+                className="flex-1 min-w-48 bg-card-raised border border-border rounded-md px-2 py-1.5 font-mono text-xs"
+              />
+              <span className="text-faint text-xs">
+                if given, an import that opens a different address is refused
+              </span>
             </div>
             {importValue.trim() && !keyLooksValid && (
               <p className="text-warn text-xs">
