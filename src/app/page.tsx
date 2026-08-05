@@ -66,7 +66,7 @@ export default function LandingPage() {
         <h2 className="text-2xl font-semibold tracking-tight">How it works</h2>
         <div className="space-y-4">
           <div className="glass-clear rounded-xl p-5 space-y-2">
-            <p className="text-xs uppercase tracking-widest text-faint">
+            <p className="text-xs uppercase tracking-widest text-muted">
               1 · Ask
             </p>
             <p className="text-[15px] leading-relaxed">
@@ -75,7 +75,7 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="glass-clear rounded-xl p-5 space-y-2">
-            <p className="text-xs uppercase tracking-widest text-faint">
+            <p className="text-xs uppercase tracking-widest text-muted">
               2 · They reply to claim
             </p>
             <p className="text-[15px] leading-relaxed">
@@ -84,7 +84,7 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="glass-clear rounded-xl p-5 space-y-2">
-            <p className="text-xs uppercase tracking-widest text-faint">
+            <p className="text-xs uppercase tracking-widest text-muted">
               3 · Silence refunds you
             </p>
             <p className="text-[15px] leading-relaxed">
