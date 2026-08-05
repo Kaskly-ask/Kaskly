@@ -73,6 +73,26 @@ node the client used.
 | V2 lock, then ignored | `3fe3478c07c064fb5919a532150e19958a32d13cbbd14231dd3634ca9f4c0037` |
 | V2 refund through the MIGRATED client | `bef822edc3f512060a55932b9afd3bf5b1f2ff51e190859d89786851413547f1` |
 
+**The 9-digit DAA is in the TRANSACTIONS, not in the test config.** Read
+back from the chain via the REST indexer:
+
+- The lock payloads carry the announcement JSON on chain:
+  `deadlineDaa` = **535,428,519** / **535,379,395** (V3) and
+  **535,429,528** / **535,380,345** (V2). Nine digits, immutable.
+- Stronger: each refund's **signature script embeds the redeem script**,
+  which carries the CLTV deadline as a script push — the operand the node
+  actually validated. The V3 refund's on-chain sig script contains the byte
+  sequence `04 c3 3d e9 1f` (a 4-byte little-endian push of 535,379,395)
+  at offset 113; the V2 refund contains `04 79 41 e9 1f` (535,380,345) at
+  offset 59.
+- That 4-byte operand is the point. The golden vector's
+  `deadlineDaa = 1_000_000` encodes as a **3-byte** push (`03 40 42 0f`),
+  which is exactly the A1 defect — a refund sig script measured at 172
+  bytes against a vector that could never occur in production. The on-chain
+  V3 refund sig script measures **173 bytes**. The chain validated the
+  production shape, not the fixture's.
+- Accepting-block blue scores: 524,447,908 → 524,449,735. Nine digits.
+
 **F21 is visible in those numbers.** Both Asks locked exactly 1 TKAS
 (100,000,000 sompi) and both refunds are a single output to the sender:
 
