@@ -109,8 +109,49 @@ export async function createAsk(
   networkId: string,
   params: CreateAskParams
 ): Promise<CreatedAsk> {
+  // F13 — LIVE GUARD ON THE SHIPPED V2 PATH (2026-08-05).
+  //
+  // The `amount <= REFUND_FEE_ALLOWANCE` check below is ~20x too permissive:
+  // a refund's mass is dominated by KIP-9 STORAGE MASS, which scales
+  // INVERSELY with the output value, so below ~0.105 KAS the required fee
+  // exceeds the fixed allowance and NO valid refund exists — the funds are
+  // stranded forever. The fourth internal pass swept 600,000 -> 10,500,000
+  // sompi against this very builder: 97 of 100 accepted amounts were
+  // unrefundable.
+  //
+  // The V3 path solves this properly (per-Ask allowance from a solved fee),
+  // but V3 IS NOT WIRED INTO THIS CLIENT — `sendAsk` calls this function.
+  // Until it is, the band must be closed by a guard rather than by prose in
+  // TRUST.md: nothing stopped a user typing 0.04.
+  //
+  // Deliberately reuses the V3 solver so there is ONE definition of "can
+  // this amount ever be refunded", rather than a second constant to drift.
   if (params.amount <= REFUND_FEE_ALLOWANCE) {
     throw new Error("amount must exceed the refund fee allowance");
+  }
+  {
+    const { isAskAmountViable } = await import("./fees-v3");
+    const { payToAddressScript } = await import("kaspa-wasm");
+    const viability = isAskAmountViable({
+      networkId,
+      amountSompi: params.amount,
+      senderAddress: params.senderAddress,
+      utxoTemplate: (amount: bigint) =>
+        ({
+          address: params.senderAddress,
+          outpoint: { transactionId: "aa".repeat(32), index: 0 },
+          amount,
+          scriptPublicKey: payToAddressScript(params.senderAddress),
+          blockDaaScore: 1n,
+          isCoinbase: false,
+        }) as unknown as IUtxoEntry,
+    });
+    if (!viability.viable) {
+      throw new Error(
+        `This amount cannot be refunded if the Ask goes unanswered, so it would be ` +
+          `permanently stuck. Send at least ~0.11 KAS. (${viability.reason})`
+      );
+    }
   }
   if (messageByteLength(params.message) > MAX_MESSAGE_BYTES) {
     throw messageTooLongError("message");
