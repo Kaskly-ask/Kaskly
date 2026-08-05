@@ -247,37 +247,73 @@ export interface DerivedState {
  * the anchor from becoming a per-cycle round trip on every open Ask. */
 const announcedByLockTxid = new Map<string, string>();
 
-/** Read the ciphertext the lock transaction actually announced.
+/** The REST page size and how many pages we are willing to walk.
  *
- * Prefers the address history already fetched for the covenant (the lock
- * pays TO the P2SH, so it is in that history and `RestTxLite` carries the
- * payload) — that path costs nothing. Falls back to a single transaction
- * lookup otherwise.
+ * OPW-3: `limit` maxes at 500 on this API (600 returns HTTP 422) and
+ * `offset` is supported with no maximum — both read from the live TN10
+ * OpenAPI schema before use, not assumed. 20 pages is 10,000 rows, which
+ * raises the cost of evicting an Ask by two orders of magnitude while
+ * keeping a pathological address bounded. */
+const HISTORY_PAGE = 500;
+const MAX_HISTORY_PAGES = 20;
+
+/** The lock transaction, fetched once per Ask per session.
+ *
+ * A mined transaction is immutable, so this is permanently cacheable, and
+ * it is the dust-proof source for BOTH things a window used to provide:
+ * the announcement payload (OPW-1) and the funding fact (OPW-3). Looking
+ * the transaction up by id costs one request and cannot be evicted by
+ * anyone paying dust to the covenant address. */
+const lockTxCache = new Map<string, RestTxLite>();
+async function lockTransaction(lockTxid: string): Promise<RestTxLite> {
+  const cached = lockTxCache.get(lockTxid);
+  if (cached) return cached;
+  const tx = await restGet<RestTxLite>(`/transactions/${lockTxid}`);
+  lockTxCache.set(lockTxid, tx);
+  return tx;
+}
+
+/** Walk the covenant address history for the transaction that SPENT the
+ * escrow. Paginated, because a single window is evictable by dust.
+ *
+ * Returns `exhausted: false` when the page budget ran out before the
+ * history did — the caller must not read that as "no spender exists".
+ * Silent truncation is what made this a denial bug in the first place. */
+async function findCovenantSpender(
+  p2sh: string
+): Promise<{ spender: RestTxLite | null; exhausted: boolean }> {
+  for (let page = 0; page < MAX_HISTORY_PAGES; page++) {
+    const rows = await restGet<RestTxLite[]>(
+      `/addresses/${encodeURIComponent(p2sh)}/full-transactions` +
+        `?limit=${HISTORY_PAGE}&offset=${page * HISTORY_PAGE}` +
+        `&resolve_previous_outpoints=light`
+    );
+    const hit = rows.find((tx) =>
+      (tx.inputs ?? []).some((i) => i.previous_outpoint_address === p2sh)
+    );
+    if (hit) return { spender: hit, exhausted: true };
+    // A short page is the end of the history.
+    if (rows.length < HISTORY_PAGE) return { spender: null, exhausted: true };
+  }
+  return { spender: null, exhausted: false };
+}
+
+/** Read the ciphertext the lock transaction actually announced (OPW-1).
+ *
+ * Sourced from the lock transaction by txid, so — unlike the address-history
+ * window this used to be able to fall back on — no amount of dust paid to
+ * the covenant address can push it out of view (OPW-3).
  *
  * THROWS if the announcement cannot be read or parsed. "Could not check" is
  * not "checked and bad": a flaky indexer must make the caller retry, never
  * silently unverify a real Ask and hide money from its owner. Same rule as
  * OPW-4. */
-async function announcedCiphertext(
-  lockTxid: string,
-  histByAddr: Map<string, RestTxLite[]>
-): Promise<string> {
+async function announcedCiphertext(lockTxid: string): Promise<string> {
   const cached = announcedByLockTxid.get(lockTxid);
   if (cached !== undefined) return cached;
 
   const { parseAskPayload, parseAskPayloadV3 } = await import("./ask");
-  let payload: string | null = null;
-  for (const rows of histByAddr.values()) {
-    const row = rows.find((t) => t.transaction_id === lockTxid);
-    if (row?.payload) {
-      payload = row.payload;
-      break;
-    }
-  }
-  if (!payload) {
-    const tx = await restGet<RestTxLite>(`/transactions/${lockTxid}`);
-    payload = tx.payload;
-  }
+  const payload = (await lockTransaction(lockTxid)).payload;
   if (!payload) throw new Error(`lock ${lockTxid} carries no announcement payload`);
 
   // V3 first, then V2 — the V3 header extends the V2 namespace prefix, so
@@ -305,38 +341,26 @@ export async function deriveStatusFromChain(
   // per address so resolving a version costs no extra round trips on the
   // path that would have made them anyway.
   const utxoByAddr = new Map<string, Awaited<ReturnType<typeof getCovenantUtxo>>>();
-  const histByAddr = new Map<string, RestTxLite[]>();
+  const expect = {
+    lockTxid: record.lockTxid,
+    amountSompi: BigInt(record.amountSompi),
+  };
   const fundedByThisAsk = async (p2sh: string): Promise<boolean> => {
     if (!utxoByAddr.has(p2sh)) {
-      utxoByAddr.set(p2sh, await getCovenantUtxo(rpc, p2sh));
+      // F16: ask for THIS ask's output, not whatever sits in slot 0.
+      utxoByAddr.set(p2sh, await getCovenantUtxo(rpc, p2sh, expect));
     }
-    const u = utxoByAddr.get(p2sh);
-    if (u) {
-      const op = u.outpoint as { transactionId: string };
-      // Unspent: this address holds THIS ask's lock output.
-      return (
-        op.transactionId === record.lockTxid &&
-        BigInt(u.amount) === BigInt(record.amountSompi)
-      );
-    }
-    // Spent (or never funded): the lock tx must appear in this address's
-    // history paying the announced amount. Same predicate §4 uses below.
-    if (!histByAddr.has(p2sh)) {
-      histByAddr.set(
-        p2sh,
-        await restGet<RestTxLite[]>(
-          `/addresses/${encodeURIComponent(p2sh)}/full-transactions?limit=50&resolve_previous_outpoints=light`
-        )
-      );
-    }
-    return (histByAddr.get(p2sh) ?? []).some(
-      (tx) =>
-        tx.transaction_id === record.lockTxid &&
-        tx.outputs.some(
-          (o) =>
-            o.script_public_key_address === p2sh &&
-            BigInt(o.amount) === BigInt(record.amountSompi)
-        )
+    // Unspent: an exact outpoint+amount match is proof on its own.
+    if (utxoByAddr.get(p2sh)) return true;
+    // Spent (or never funded): read the funding fact from the LOCK
+    // TRANSACTION itself. This used to scan one limit=50 window of address
+    // history, which anyone could evict with ~50 dust payments (OPW-3); a
+    // lookup by txid cannot be evicted at all.
+    const lockTx = await lockTransaction(record.lockTxid);
+    return (lockTx.outputs ?? []).some(
+      (o) =>
+        o.script_public_key_address === p2sh &&
+        BigInt(o.amount) === expect.amountSompi
     );
   };
 
@@ -372,7 +396,7 @@ export async function deriveStatusFromChain(
   //
   // The lock transaction's payload IS the announcement and carries the
   // ciphertext. Check against that.
-  const announced = await announcedCiphertext(record.lockTxid, histByAddr);
+  const announced = await announcedCiphertext(record.lockTxid);
   if (announced !== record.messageCiphertext) {
     return {
       verified: false,
@@ -406,25 +430,28 @@ export async function deriveStatusFromChain(
 
   // Covenant address has no UTXO: either spent (answered/refunded) or the
   // announcement never matched a funded escrow (Â§4 â†’ malformed).
-  const hist =
-    histByAddr.get(cov.p2shAddress) ??
-    (await restGet<RestTxLite[]>(
-      `/addresses/${encodeURIComponent(cov.p2shAddress)}/full-transactions?limit=50&resolve_previous_outpoints=light`
-    ));
-  const funded = hist.some(
-    (tx) =>
-      tx.transaction_id === record.lockTxid &&
-      tx.outputs.some(
-        (o) =>
-          o.script_public_key_address === cov.p2shAddress &&
-          BigInt(o.amount) === BigInt(record.amountSompi)
-      )
+  // OPW-3. Both predicates used to come from ONE `limit=50` window of the
+  // covenant address's history, which ~50 dust payments evict. Funding now
+  // comes from the lock transaction directly (unevictable), and the spender
+  // from a paginated walk.
+  const lockTx = await lockTransaction(record.lockTxid);
+  const funded = (lockTx.outputs ?? []).some(
+    (o) =>
+      o.script_public_key_address === cov.p2shAddress &&
+      BigInt(o.amount) === BigInt(record.amountSompi)
   );
-  const spender = hist.find((tx) =>
-    (tx.inputs ?? []).some(
-      (i) => i.previous_outpoint_address === cov.p2shAddress
-    )
-  );
+  const { spender, exhausted } = await findCovenantSpender(cov.p2shAddress);
+  if (funded && !spender && !exhausted) {
+    // The page budget ran out before the history did. We do NOT know this
+    // Ask is unresolvable, so we must not say so — reporting "unverified"
+    // here would hand the attacker exactly the eviction they paid for.
+    // Throw so the caller keeps the last known state and retries.
+    throw new Error(
+      `covenant history for ${cov.p2shAddress} exceeds ${
+        HISTORY_PAGE * MAX_HISTORY_PAGES
+      } rows without a spender — refusing to conclude`
+    );
+  }
   if (!funded || !spender) {
     // Not funded â†’ announcement is malformed per Â§4; funded-but-no-spender
     // should not happen once the UTXO is gone â€” surface as unverified.
@@ -663,14 +690,20 @@ export async function claimAsk(
   // resolution costs nothing beyond the lookup this function already makes.
   const utxos = new Map<string, Awaited<ReturnType<typeof getCovenantUtxo>>>();
   const isFunded = async (p2sh: string) => {
-    if (!utxos.has(p2sh)) utxos.set(p2sh, await getCovenantUtxo(rpc, p2sh));
-    const u = utxos.get(p2sh);
-    if (!u) return false;
-    const op = u.outpoint as { transactionId: string };
-    return (
-      op.transactionId === record.lockTxid &&
-      BigInt(u.amount) === BigInt(record.amountSompi)
-    );
+    // F16: match THIS ask's outpoint inside the lookup rather than trusting
+    // entries[0], which anyone can displace by paying dust to the covenant
+    // address. A miss here means "our escrow is not there", not "the
+    // address is empty".
+    if (!utxos.has(p2sh)) {
+      utxos.set(
+        p2sh,
+        await getCovenantUtxo(rpc, p2sh, {
+          lockTxid: record.lockTxid,
+          amountSompi: BigInt(record.amountSompi),
+        })
+      );
+    }
+    return Boolean(utxos.get(p2sh));
   };
   const cov = await covenantFor(record, isFunded);
   const utxo = utxos.get(cov.p2shAddress) ?? null;
@@ -744,14 +777,20 @@ export async function maybeAutoRefund(
   // doubles as the "is this the funded covenant?" test.
   const utxos = new Map<string, Awaited<ReturnType<typeof getCovenantUtxo>>>();
   const isFunded = async (p2sh: string) => {
-    if (!utxos.has(p2sh)) utxos.set(p2sh, await getCovenantUtxo(rpc, p2sh));
-    const u = utxos.get(p2sh);
-    if (!u) return false;
-    const op = u.outpoint as { transactionId: string };
-    return (
-      op.transactionId === record.lockTxid &&
-      BigInt(u.amount) === BigInt(record.amountSompi)
-    );
+    // F16: match THIS ask's outpoint inside the lookup rather than trusting
+    // entries[0], which anyone can displace by paying dust to the covenant
+    // address. A miss here means "our escrow is not there", not "the
+    // address is empty".
+    if (!utxos.has(p2sh)) {
+      utxos.set(
+        p2sh,
+        await getCovenantUtxo(rpc, p2sh, {
+          lockTxid: record.lockTxid,
+          amountSompi: BigInt(record.amountSompi),
+        })
+      );
+    }
+    return Boolean(utxos.get(p2sh));
   };
   let cov: CovenantView;
   try {
@@ -817,7 +856,10 @@ export async function maybeAutoRefund(
     //
     // A node too broken to answer the re-read throws from here as well,
     // which is also "retry" — the correct reading when nothing is known.
-    const stillFunded = await getCovenantUtxo(rpc, cov.p2shAddress);
+    const stillFunded = await getCovenantUtxo(rpc, cov.p2shAddress, {
+      lockTxid: record.lockTxid,
+      amountSompi: BigInt(record.amountSompi),
+    });
     if (!stillFunded) return null;
     throw e;
   }

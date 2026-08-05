@@ -130,6 +130,24 @@ be marked closed by the wiring work.
 
 All four were PROVEN by the fourth internal pass with passing controls.
 
+**OPW-3 is now FIXED** (2026-08-05), together with **F16**, because they
+compound: F16 broke the UNSPENT path (`getCovenantUtxo` returned
+`entries[0]`, so dust UTXOs displaced the real escrow) and OPW-3 broke the
+SPENT path (both predicates read one `limit=50` history window). Either
+alone made a funded Ask fail verification, vanish from both screens, and —
+the part that costs money — never auto-refund. Fixes: `getCovenantUtxo`
+takes an expected `{lockTxid, amountSompi}` and scans all entries; the
+funding fact now comes from the LOCK TRANSACTION by txid, which dust cannot
+evict; the spender comes from a paginated walk (`limit=500`, `offset`,
+20 pages). Exhausting the page budget THROWS rather than reporting
+"unverified" — concluding from a truncated read is what made this a denial
+bug. Pagination parameters were read from the live TN10 OpenAPI schema
+before use (`limit` max 500, 600 → HTTP 422; `offset` no maximum), not
+assumed. Proven in `tests/unit/opw3-dust-eviction.test.ts` — RED at
+`c6fa507` with 60 dust UTXOs and 60 dust history rows; controls cover a
+clean Ask, a fail-closed unfunded announcement, and dust interleaved around
+a legitimate Ask. Live suite re-run 11/11.
+
 **OPW-1 is now FIXED** (2026-08-05). `deriveStatusFromChain` now anchors
 `messageCiphertext` to the lock transaction's announcement payload — the
 one record field that was not a covenant input, and therefore the only one
@@ -167,7 +185,7 @@ OPEN.
 |---|---|---|
 | **OPW-1** ✅ **FIXED 2026-08-05** | **Unauthenticated POST rewrites the displayed MESSAGE of a chain-verified Ask.** `deriveStatusFromChain` re-verifies sender/recipient/amount/deadline/lockTxid against chain state, but **never `messageCiphertext`** — so a swapped message keeps `verification: "ok"` and the inbox paints "✓ escrowed" over it. Because `encryptKasia1` is a public-key operation and the recipient's x-only key comes from their address, an unauthenticated attacker crafts a blob decrypting to text of their choosing. PoC drove this against a live server: attacker-chosen phishing text under the verified badge. | The migration changes which covenant is built; it does not add auth to `/api/asks`, and it does not bring `messageCiphertext` under chain verification. Extends known-OPEN **F18** from "hide + suppress refund" to **positive content injection**. |
 | **OPW-2** | **A single REST indexer is the sole authority for every settled verdict.** Once the covenant UTXO is gone, the funding fact, spender identity, payload, outputs and block time all come from one unauthenticated host, never cross-checked against wRPC. `RestTxLite.is_accepted` is **declared and never read**. PoC: a hostile indexer produced `refunded` on a real claim (the exact F14 lie through a different door), inflated "Earned" to 9,999 KAS, and made an Ask vanish. | V3 changes the covenant, not the verdict pipeline. `deriveStatusFromChain` reads REST identically for V2 and V3. |
-| **OPW-3** | **50 dust payments evict the rebuild window.** `asks-client.ts` requests `full-transactions?limit=50` with no pagination, and BOTH load-bearing predicates (`funded`, `spender`) must find their rows inside it. Results are newest-first (confirmed against the live indexer), the covenant P2SH is publicly derivable, and anyone may pay to it. PoC: 50 dust rows → `rebuildFromChain` returns `[]`, i.e. **the designated recovery action loses the Ask**. | Distinct mechanism from known-OPEN **F16** (which jams `getCovenantUtxo`); this evicts the REST window and takes recovery with it. The window is version-agnostic. |
+| **OPW-3** ✅ **FIXED 2026-08-05 (with F16)** | **50 dust payments evict the rebuild window.** `asks-client.ts` requests `full-transactions?limit=50` with no pagination, and BOTH load-bearing predicates (`funded`, `spender`) must find their rows inside it. Results are newest-first (confirmed against the live indexer), the covenant P2SH is publicly derivable, and anyone may pay to it. PoC: 50 dust rows → `rebuildFromChain` returns `[]`, i.e. **the designated recovery action loses the Ask**. | Distinct mechanism from known-OPEN **F16** (which jams `getCovenantUtxo`); this evicts the REST window and takes recovery with it. The window is version-agnostic. |
 | **OPW-4** ✅ **FIXED 2026-08-05** | **Any RPC error string permanently suppresses auto-refund for the session.** `isChainRejection` matches the bare substring `"RPC Server (remote error)"`, which every remote failure carries; `maybeAutoRefund` converts it to `return null` — the same value meaning "someone else already refunded" — and `activity.tsx` marks the ask attempted BEFORE awaiting, rolling back only in `catch`. `null` does not throw. PoC: attempt 1 attempted, attempts 2–3 skipped, never retried until reload. | The suppression is in the auto-refund effect, untouched by V3. Worse after wiring, not better: the failure it silences is exactly the stranded-refund case. |
 
 **Fix sketches** (not started): OPW-1 authenticate writes or stop rendering

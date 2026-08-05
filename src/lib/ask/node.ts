@@ -204,14 +204,40 @@ export async function createAsk(
   };
 }
 
+/**
+ * Find this Ask's escrow output at the covenant address.
+ *
+ * F16 + OPW-3. This used to return `entries[0]`. The covenant P2SH is
+ * publicly derivable from the on-chain announcement and anyone may pay to
+ * it, so a few dust UTXOs pushed the real lock output out of slot 0 and the
+ * client stopped recognising its own escrow — the Ask disappeared from both
+ * screens and the §8 auto-refund never fired for it. Nothing is stolen (the
+ * covenant pins refunds to the sender), but a sender can be denied
+ * automatic recovery of their own money for the price of some dust.
+ *
+ * Pass `expect` wherever the caller knows WHICH output it wants — that is
+ * every money path. The unfiltered form is kept only for callers that
+ * legitimately just ask "is anything here".
+ */
 export async function getCovenantUtxo(
   rpc: RpcClient,
-  p2shAddress: string
+  p2shAddress: string,
+  expect?: { lockTxid: string; amountSompi: bigint }
 ): Promise<IUtxoEntry | null> {
   const { entries } = await rpc.getUtxosByAddresses({
     addresses: [p2shAddress],
   });
-  return (entries[0] as unknown as IUtxoEntry) ?? null;
+  const all = entries as unknown as IUtxoEntry[];
+  if (!expect) return all[0] ?? null;
+  return (
+    all.find((e) => {
+      const op = e.outpoint as unknown as { transactionId: string };
+      return (
+        op.transactionId === expect.lockTxid &&
+        BigInt(e.amount) === expect.amountSompi
+      );
+    }) ?? null
+  );
 }
 
 export async function currentDaaScore(rpc: RpcClient): Promise<bigint> {
