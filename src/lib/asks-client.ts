@@ -90,43 +90,29 @@ export interface CovenantView {
   minRefund: bigint;
 }
 
-/** Rebuild the covenant purely from the announced/cached parameters â€”
- * the Â§4 verification predicate is "does THIS reproduce the funded P2SH". */
-export async function covenantFor(record: {
+/** Cache of resolved versions, keyed by askRef. Resolution is a chain
+ * fact and does not change for a given Ask, so the 45s re-derive cycle
+ * must not pay for it repeatedly (cost bound, Phase 1). */
+const resolvedVersion = new Map<string, ProtocolVersion>();
+
+/** Reset — tests and the "rebuild from chain" action drop cached state. */
+export function clearVersionCache(): void {
+  resolvedVersion.clear();
+}
+
+export interface CovenantRecordView {
   senderAddress: string;
   recipientAddress: string;
   amountSompi: string;
   deadline: string;
+  /** Try-first HINT only — never authority. See below. */
   protocolVersion?: ProtocolVersion;
   askId?: string | null;
   refundAllowance?: string | null;
-}): Promise<CovenantView> {
-  // V3 (protocol v2): the covenant is derived from the per-Ask askId and
-  // allowance, NOT from the V2 fixed-allowance arithmetic. Routing a V3
-  // record through the V2 derivation produces the WRONG P2SH, so §4 fails,
-  // the row is filtered from both screens, and maybeAutoRefund no-ops
-  // against an address that was never funded.
-  if (record.protocolVersion === 2) {
-    const { deriveAskCovenantV3, xOnlyFromAddress } = await import("./ask");
-    if (!record.askId || !record.refundAllowance) {
-      throw new Error("v2-protocol record is missing askId/refundAllowance");
-    }
-    const allowance = BigInt(record.refundAllowance);
-    const cov = deriveAskCovenantV3(
-      {
-        recipientXOnlyHex: xOnlyFromAddress(record.recipientAddress),
-        senderAddress: record.senderAddress,
-        deadlineDaa: BigInt(record.deadline),
-        askIdHex: record.askId,
-        refundAllowance: allowance,
-      },
-      NETWORK_ID
-    );
-    // The V3 floor is (funded input − allowance); minRefund is the same
-    // quantity expressed against the announced amount.
-    return { ...cov, minRefund: BigInt(record.amountSompi) - allowance };
-  }
+  askRef?: string;
+}
 
+async function deriveV2(record: CovenantRecordView): Promise<CovenantView> {
   const { deriveAskCovenant, xOnlyFromAddress, REFUND_FEE_ALLOWANCE } =
     await import("./ask");
   const minRefund = BigInt(record.amountSompi) - REFUND_FEE_ALLOWANCE;
@@ -141,6 +127,90 @@ export async function covenantFor(record: {
     NETWORK_ID
   );
   return { ...cov, minRefund };
+}
+
+async function deriveV3(record: CovenantRecordView): Promise<CovenantView> {
+  const { deriveAskCovenantV3, xOnlyFromAddress } = await import("./ask");
+  if (!record.askId || !record.refundAllowance) {
+    throw new Error("v2-protocol record is missing askId/refundAllowance");
+  }
+  const allowance = BigInt(record.refundAllowance);
+  const cov = deriveAskCovenantV3(
+    {
+      recipientXOnlyHex: xOnlyFromAddress(record.recipientAddress),
+      senderAddress: record.senderAddress,
+      deadlineDaa: BigInt(record.deadline),
+      askIdHex: record.askId,
+      refundAllowance: allowance,
+    },
+    NETWORK_ID
+  );
+  return { ...cov, minRefund: BigInt(record.amountSompi) - allowance };
+}
+
+/**
+ * Rebuild the covenant from the announced/cached parameters — the §4
+ * predicate is "does THIS reproduce the funded P2SH".
+ *
+ * VERSION IS RESOLVED BY TRIAL MATCH AGAINST THE FUNDED ADDRESS, never by
+ * a stored field. Storing the version merely relocated the trust from the
+ * indexer to the cache, and F18 leaves cache writes unauthenticated — so a
+ * flipped `protocolVersion` on a real V3 record made this derive the V2
+ * address, §4 found no UTXO, the row vanished from both screens and
+ * maybeAutoRefund no-opped. A funded P2SH cannot be flipped; a field can.
+ *
+ * Cost bounds (all asserted in tests/unit/version-trial-reconstruction):
+ *  - V3 is only a candidate when askId AND refundAllowance are present, so
+ *    junk records cannot cost two derivations each;
+ *  - the stored version orders the candidates, so a correct hint costs ONE
+ *    oracle call — the honest path is unchanged;
+ *  - resolution is memoised per askRef;
+ *  - no candidate matches => THROW. Never silently pick one.
+ *
+ * `isFunded` is the chain oracle. Callers that can reach the chain MUST
+ * pass it. Without it this falls back to the hint, which is authority-free
+ * guessing suitable only for offline quoting — never for money movement.
+ */
+export async function covenantFor(
+  record: CovenantRecordView,
+  isFunded?: (p2shAddress: string) => Promise<boolean>
+): Promise<CovenantView> {
+  const hinted: ProtocolVersion = record.protocolVersion === 2 ? 2 : 1;
+  const v3Possible = Boolean(record.askId && record.refundAllowance);
+
+  if (!isFunded) {
+    // Offline path: hint only, and it cannot be authority.
+    if (hinted === 2 && v3Possible) return deriveV3(record);
+    return deriveV2(record);
+  }
+
+  const cached = record.askRef ? resolvedVersion.get(record.askRef) : undefined;
+  const order: ProtocolVersion[] = cached
+    ? [cached]
+    : hinted === 2 && v3Possible
+      ? [2, 1]
+      : [1, 2];
+
+  let lastErr: unknown;
+  for (const version of order) {
+    if (version === 2 && !v3Possible) continue; // cheap precondition
+    let candidate: CovenantView;
+    try {
+      candidate = version === 2 ? await deriveV3(record) : await deriveV2(record);
+    } catch (e) {
+      lastErr = e;
+      continue; // a non-constructible candidate is not a match
+    }
+    if (await isFunded(candidate.p2shAddress)) {
+      if (record.askRef) resolvedVersion.set(record.askRef, version);
+      return candidate;
+    }
+  }
+  throw new Error(
+    `no covenant version reproduces a funded address for this record` +
+      (lastErr ? ` (last derivation error: ${String((lastErr as Error).message ?? lastErr)})` : "") +
+      ` — refusing to guess`
+  );
 }
 
 // ---------- chain-derived status (ASKSPEC Â§7) ----------------------------
@@ -166,11 +236,68 @@ export async function deriveStatusFromChain(
   rpc: RpcClient,
   record: AskRecordDto
 ): Promise<DerivedState> {
-  const cov = await covenantFor(record);
   const { getCovenantUtxo, currentDaaScore, parseAskPayload, parseAskPayloadV3 } =
     await import("./ask");
 
-  const utxo = await getCovenantUtxo(rpc, cov.p2shAddress);
+  // THE CHAIN ORACLE for trial reconstruction. Without passing this,
+  // covenantFor falls back to the stored hint — which is what made the
+  // version a trusted field in the first place. Results are memoised
+  // per address so resolving a version costs no extra round trips on the
+  // path that would have made them anyway.
+  const utxoByAddr = new Map<string, Awaited<ReturnType<typeof getCovenantUtxo>>>();
+  const histByAddr = new Map<string, RestTxLite[]>();
+  const fundedByThisAsk = async (p2sh: string): Promise<boolean> => {
+    if (!utxoByAddr.has(p2sh)) {
+      utxoByAddr.set(p2sh, await getCovenantUtxo(rpc, p2sh));
+    }
+    const u = utxoByAddr.get(p2sh);
+    if (u) {
+      const op = u.outpoint as { transactionId: string };
+      // Unspent: this address holds THIS ask's lock output.
+      return (
+        op.transactionId === record.lockTxid &&
+        BigInt(u.amount) === BigInt(record.amountSompi)
+      );
+    }
+    // Spent (or never funded): the lock tx must appear in this address's
+    // history paying the announced amount. Same predicate §4 uses below.
+    if (!histByAddr.has(p2sh)) {
+      histByAddr.set(
+        p2sh,
+        await restGet<RestTxLite[]>(
+          `/addresses/${encodeURIComponent(p2sh)}/full-transactions?limit=50&resolve_previous_outpoints=light`
+        )
+      );
+    }
+    return (histByAddr.get(p2sh) ?? []).some(
+      (tx) =>
+        tx.transaction_id === record.lockTxid &&
+        tx.outputs.some(
+          (o) =>
+            o.script_public_key_address === p2sh &&
+            BigInt(o.amount) === BigInt(record.amountSompi)
+        )
+    );
+  };
+
+  let cov: CovenantView;
+  try {
+    cov = await covenantFor(record, fundedByThisAsk);
+  } catch {
+    // No covenant version reproduces a funded address: the announcement is
+    // not backed by chain state. Fail closed — never surface as real.
+    return {
+      verified: false,
+      status: record.status,
+      claimTxid: record.claimTxid,
+      refundTxid: record.refundTxid,
+      replyCiphertext: null,
+      claimNetSompi: null,
+      resolvedAtMs: null,
+    };
+  }
+
+  const utxo = utxoByAddr.get(cov.p2shAddress) ?? null;
   if (utxo) {
     const outpoint = utxo.outpoint as { transactionId: string };
     const verified =
@@ -191,9 +318,11 @@ export async function deriveStatusFromChain(
 
   // Covenant address has no UTXO: either spent (answered/refunded) or the
   // announcement never matched a funded escrow (Â§4 â†’ malformed).
-  const hist = await restGet<RestTxLite[]>(
-    `/addresses/${encodeURIComponent(cov.p2shAddress)}/full-transactions?limit=50&resolve_previous_outpoints=light`
-  );
+  const hist =
+    histByAddr.get(cov.p2shAddress) ??
+    (await restGet<RestTxLite[]>(
+      `/addresses/${encodeURIComponent(cov.p2shAddress)}/full-transactions?limit=50&resolve_previous_outpoints=light`
+    ));
   const funded = hist.some(
     (tx) =>
       tx.transaction_id === record.lockTxid &&
