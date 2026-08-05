@@ -48,13 +48,78 @@ export function CollapsibleText({
  * countdown ticks locally at 1/s; when the chain clock resyncs, small
  * corrections are absorbed by pausing (upward drift) or double-stepping
  * (downward drift) rather than jumping the number — only drift beyond 60s
- * resyncs visibly. */
+ * resyncs visibly. (Docblock for `Countdown`, below — the viewer types
+ * and helpers between here and it were added for the deadline treatment.)
+ */
+
+/** Whose card this is. The deadline means OPPOSITE things to the two
+ * sides, so it cannot look the same to both:
+ *
+ *   recipient — the window to earn is closing. Mild, fair urgency.
+ *   asker     — the refund is arriving. "A reply or your money back" is the
+ *               promise; the deadline is the half that keeps it. Nothing is
+ *               being lost, so nothing may look like loss.
+ */
+export type CardViewer = "recipient" | "asker";
+
+/** How long before the deadline the card starts changing temperature.
+ * Beyond this it sits at rest — a 7-day Ask should not spend six days
+ * looking like it is about to do something. */
+const APPROACH_WINDOW_SECS = 48 * 60 * 60;
+
+/** 0 while the deadline is far away, easing to 1 as it arrives. */
+function approachHeat(remainingSecs: number | null): number {
+  if (remainingSecs === null) return 0;
+  if (remainingSecs <= 0) return 1;
+  const linear = 1 - Math.min(1, remainingSecs / APPROACH_WINDOW_SECS);
+  // Ease-in: the last hours move far more than the first, so the change is
+  // felt when it matters instead of being a slow constant drift.
+  return linear * linear;
+}
+
+/** The rail colour for a given side and heat.
+ *
+ * THE AXIS IS BRIGHTNESS, NOT HUE — and that is a correction. The first
+ * version moved the recipient's card toward `--warn`, which is wrong for
+ * the same reason it is wrong for the asker: amber is this palette's
+ * WARNING colour. An approaching deadline is not a fault in the Ask. To
+ * the recipient it is an opportunity closing ("you can still claim this"),
+ * and dressing that as a warning would say "something is broken here".
+ *
+ * So both sides start at teal and separate along LIGHT:
+ *
+ *   recipient -> --foreground. The card lights up. Louder, not alarmed.
+ *   asker     -> --cool (blue-slate). The card settles. Quieter, at rest.
+ *
+ * Attention without alarm for one, calm for the other, and neither borrows
+ * a meaning the palette already spends on real warnings.
+ */
+function railColor(viewer: CardViewer, heat: number): string {
+  const pct = Math.round((1 - heat) * 100);
+  const target = viewer === "asker" ? "var(--cool)" : "var(--foreground)";
+  return `color-mix(in oklab, var(--teal) ${pct}%, ${target})`;
+}
+
+/** Only the recipient's card glows, and only late. Brightness is the
+ * urgency signal; the asker's card must never gain presence as its
+ * deadline nears, because for them nothing is at stake. */
+function railGlow(viewer: CardViewer, heat: number): string | undefined {
+  if (viewer === "asker" || heat < 0.45) return undefined;
+  const alpha = Math.round((heat - 0.45) * 60); // 0 -> ~33%
+  return `color-mix(in oklab, var(--teal) ${alpha}%, transparent)`;
+}
+
 export function Countdown({
   deadline,
   daaScore,
+  viewer = "recipient",
+  onRemaining,
 }: {
   deadline: string;
   daaScore: bigint | null;
+  viewer?: CardViewer;
+  /** Lifts the ticking value to the card so the rail can use it. */
+  onRemaining?: (secs: number | null) => void;
 }) {
   const [displaySecs, setDisplaySecs] = useState<number | null>(null);
   const targetRef = useRef<number | null>(null);
@@ -93,11 +158,24 @@ export function Countdown({
     return () => clearInterval(id);
   }, []);
 
+  // Report upward so the card can colour its rail from the same value the
+  // user is reading — one source of truth for "how close is this".
+  useEffect(() => {
+    onRemaining?.(displaySecs);
+  }, [displaySecs, onRemaining]);
+
   if (displaySecs === null) {
     return <span className="text-faint text-xs">countdown syncing…</span>;
   }
   if (displaySecs <= 0) {
-    return <span className="text-warn text-xs">deadline passed</span>;
+    // Same instant, two meanings. For the asker this is the refund
+    // arriving — the promise being kept — so it must not wear the warning
+    // colour or the word "passed".
+    return viewer === "asker" ? (
+      <span className="text-cool text-xs">refund due</span>
+    ) : (
+      <span className="text-warn text-xs">deadline passed</span>
+    );
   }
   const secs = displaySecs;
   const d = Math.floor(secs / 86400);
@@ -106,12 +184,26 @@ export function Countdown({
   const s = Math.floor(secs % 60);
   const text =
     d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+  // "2h left" is a loss frame; the asker is not losing anything, so their
+  // clock counts toward the refund instead of away from the reply.
+  const heat = approachHeat(secs);
+  // Recipient brightens toward full foreground (louder); asker settles to
+  // slate (quieter). Neither uses --warn: nothing is wrong while a
+  // deadline is merely approaching.
+  const tone =
+    viewer === "asker"
+      ? heat > 0.5
+        ? "text-cool"
+        : "text-teal"
+      : heat > 0.5
+        ? "text-foreground"
+        : "text-teal";
   return (
     <span
-      className="text-teal text-xs amount"
+      className={`${tone} text-xs amount transition-colors duration-700`}
       title={`Estimated from the DAA-score deadline (${deadline}); the chain counts blocks, not clocks.`}
     >
-      {text} left
+      {viewer === "asker" ? `refunds in ${text}` : `${text} left`}
     </span>
   );
 }
@@ -216,6 +308,7 @@ export function AskCard({
   daaScore,
   status,
   resolvedAtMs = null,
+  viewer = "recipient",
   badge,
   footer,
   children,
@@ -232,6 +325,8 @@ export function AskCard({
   status: AskStatus;
   /** Epoch ms when the claim/refund was mined (settled cards, F10). */
   resolvedAtMs?: number | null;
+  /** Which side is looking. Changes tone only — never status or money. */
+  viewer?: CardViewer;
   /** Extra chip(s) in the status row (e.g. the §4 escrow-verified badge). */
   badge?: ReactNode;
   /** Explorer links row. */
@@ -239,8 +334,44 @@ export function AskCard({
   /** Expanded content (reply box, reply text, actions). */
   children?: ReactNode;
 }) {
+  const [remainingSecs, setRemainingSecs] = useState<number | null>(null);
+  const live = status === "open" || status === "expired_pending_refund";
+  const heat = live ? approachHeat(remainingSecs) : 0;
+
+  // "Caught it" fires ONLY on the open -> answered transition, never on the
+  // first render of an already-answered card. Reloading a page is not an
+  // event worth celebrating, and a bloom on every mount would turn a
+  // moment into wallpaper.
+  const prevStatus = useRef<AskStatus | null>(null);
+  const [caught, setCaught] = useState(false);
+  useEffect(() => {
+    const was = prevStatus.current;
+    prevStatus.current = status;
+    if (was === null) return; // first render — no transition happened
+    if (was !== "answered" && status === "answered") {
+      setCaught(true);
+      const id = setTimeout(() => setCaught(false), 2600);
+      return () => clearTimeout(id);
+    }
+  }, [status]);
+
   return (
-    <article className="glass-clear rounded-xl p-5 space-y-4 animate-card-in">
+    <article
+      className={`glass-clear rounded-xl p-5 space-y-4 animate-card-in ${
+        live && heat > 0 ? "deadline-rail" : ""
+      } ${caught ? "animate-caught" : ""}`}
+      style={
+        live && heat > 0
+          ? ({
+              "--card-accent": railColor(viewer, heat),
+              "--card-glow": railGlow(viewer, heat) ?? "transparent",
+              "--card-glow-blur": railGlow(viewer, heat)
+                ? `${Math.round(heat * 22)}px`
+                : "0px",
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {message !== null ? (
@@ -264,7 +395,27 @@ export function AskCard({
         {status === "answered" || status === "refunded" ? (
           <ResolvedAgo resolvedAtMs={resolvedAtMs} />
         ) : (
-          <Countdown deadline={deadline} daaScore={daaScore} />
+          <Countdown
+            deadline={deadline}
+            daaScore={daaScore}
+            viewer={viewer}
+            onRemaining={setRemainingSecs}
+          />
+        )}
+        {caught && (
+          <span className="text-[10px] tracking-wide text-teal border border-teal/60 bg-teal/10 rounded px-1.5 py-0.5 animate-fade-in">
+            caught it
+          </span>
+        )}
+        {/* The refund, said out loud, and only to the person it happened
+            to. "A reply or your money back" is the promise — this is the
+            moment it is kept, so it should read as the product working. To
+            the recipient the same event is just "the sender got it back";
+            telling them they paid nothing for silence would be nonsense. */}
+        {status === "refunded" && viewer === "asker" && (
+          <span className="text-xs text-cool">
+            ✓ refunded — you paid nothing for silence
+          </span>
         )}
         <span className="text-xs text-faint">
           {counterpartyLabel}{" "}

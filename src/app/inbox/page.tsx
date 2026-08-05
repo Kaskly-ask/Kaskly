@@ -106,6 +106,7 @@ function InboxItem({
       amountSompi={ask.amountSompi}
       counterpartyLabel="from"
       counterpartyAddress={ask.senderAddress}
+      viewer="recipient"
       deadline={ask.deadline}
       daaScore={daaScore}
       status={ask.status}

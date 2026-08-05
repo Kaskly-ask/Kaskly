@@ -40,6 +40,7 @@ function SentItem({
       amountSompi={ask.amountSompi}
       counterpartyLabel="to"
       counterpartyAddress={ask.recipientAddress}
+      viewer="asker"
       deadline={ask.deadline}
       daaScore={daaScore}
       status={ask.status}
