@@ -8,6 +8,86 @@
 public-launch material (PITCH.md — already written) is SEQUENCED AFTER
 beta feedback.**
 
+### V3 WIRING MIGRATION — Phase 2 complete (2026-08-05)
+
+Phase 2 connected the three remaining spend/quote sites, plus rebuild, to
+the version resolved in Phase 1. Commits: `69d928a`/`028a9f7` (RED),
+`8b7ccce` (GREEN), `9cdd131` (RED), `1dc10e6` (GREEN).
+
+**The mechanism.** `CovenantView` now carries `protocolVersion` — the
+version TRIAL RECONSTRUCTION resolved against the funded address. Every
+call site branches on that, never on `record.protocolVersion`, which is a
+cache-writable hint (F18). `claimAsk` and `maybeAutoRefund` each build the
+funding oracle from their own RPC handle, memoised, so resolution costs
+nothing beyond the UTXO lookup they already performed.
+
+**How routing was proven — and why the obvious test would not have.** A
+test that supplies the oracle itself and calls `buildClaimTransactionV3`
+proves the BUILDER. It says nothing about whether `claimAsk` reaches it —
+exactly the gap Phase 1 shipped with (a resolver no production caller
+invoked, unit-green throughout). `tests/unit/v3-routing-real-path.test.ts`
+therefore calls the REAL exported `claimAsk`/`maybeAutoRefund` against a
+fake node that funds exactly ONE P2SH, and asserts on the transaction that
+arrives at `submitTransaction`. Nothing about the covenant choice is
+supplied by the test.
+
+**Committed failing first, and re-verified after a fixture defect.** The
+first RED run was partly red for the WRONG reason: `covenantFor` memoises
+by `askRef` and every record in the file shared one, so the V2 control was
+deciding the V3 cases — indistinguishable from a routing failure. Fixed
+with distinct lock txids (`028a9f7`) and the RED state re-taken. Attributed
+failures against the pre-wiring source:
+
+| assertion | pre-wiring failure | mechanism |
+|---|---|---|
+| V3 claim header | `expected false to be true` | V2 builder, wrong payload header |
+| V3 claim (lied version) | `no longer claimable` | resolution followed the field, queried an unfunded address |
+| V3 refund pricing | `expected 99678400 to be greater than 99678400` | V2 builder paid EXACTLY the covenant floor |
+| V3 refund (lied version) | `expected null not to be null` | no-op against the wrong address |
+
+**The refund discriminator (worth recording).** "Above the floor" does not
+distinguish the builders — both produce script-valid refunds. What
+separates them is where in the band they land. Measured for a 1 KAS Ask at
+a live-magnitude deadline: the V2 builder pays `input - allowance` =
+99,678,400 exactly, surrendering the whole allowance to the miner (F21);
+the V3 builder solves the fee against the sig script it actually emits (A1)
+and pays 99,920,300. A STRICT inequality against the floor can only be
+satisfied by the V3 builder. 241,900 sompi of the sender's money is the
+observable difference.
+
+**rebuild-from-chain was the quiet one.** `scanHistory` only ever called
+the V2 parser. The V3 announce header `ciph_msg:1:ask:a2:` extends the V2
+namespace prefix, so a V3 payload passed the prefix filter, reached a
+parser that did not understand it, and was skipped by the malformed-payload
+`catch` — silently. After the wiring that meant every Ask the client
+creates was invisible to rebuild: drop the cache and the sender's own open
+Asks, still holding money, do not come back. Brief §3.3 promises the DB can
+be dropped. Fixed with `parseEither` (V3 first, V2 fallback) and
+`candidateFromEnvelopeV3`.
+
+**Deliberate exception.** `estimateReplyClaim` (asks-client.ts:532) is the
+one site that still calls `covenantFor` WITHOUT an oracle. It is offline by
+contract (no RPC parameter) and produces a fee preview only. A lied version
+can mis-price the preview; it cannot move money, because `claimAsk`
+re-resolves against the chain before it builds. Documented in place.
+
+**Gate:** lint clean, build clean, 109/109 unit across 17 files.
+
+**NOT closed by this work.** OPEN-POST-WIRING (OPW-1..4) remain open — the
+server/cache-layer pass is separate. And Phase 2 is NOT the live proof: no
+chain transaction has been broadcast under V3 through the shipping client.
+That is Phase 3, and `hardened-v1` stays unhanded until it passes.
+
+### R4 self-review (V3 wiring Phase 2)
+
+Diff reviewed against D6, A3, A4, C2, §3.3, F13, F18, F21, F22. Deviations:
+one, declared above (`estimateReplyClaim` offline hint path). The
+`?? ""` / `?? "0"` defaults I first wrote for `askIdHex` and
+`refundAllowance` were replaced with explicit throws: unreachable by
+construction (`deriveV3` refuses such records), but a silent default there
+would have built a claim whose askId does not match the covenant and left
+the recipient watching it be rejected.
+
 ### Deploy findings (kaskly.onrender.com, 2026-08-05) — both fixed
 
 - **B1 — BLOCKER: production minification broke SDK class checks.**
