@@ -50,7 +50,15 @@ const CURRENT_DAA = ANCHOR.daaScore + BigInt(86_400 * ANCHOR.ratePerSecond);
 const DEADLINE = CURRENT_DAA + BigInt(7 * 86_400 * ANCHOR.ratePerSecond);
 const AMOUNT = 100_000_000n;
 const ASK_ID = "5c".repeat(32);
-const LOCK_TXID = "bb".repeat(32);
+// DISTINCT lock txids per record. covenantFor memoises the resolved version
+// by askRef, exactly as it does in the browser — so sharing one txid across
+// records would let the V2 control's resolution decide the V3 cases. Real
+// Asks are keyed by their lock txid and never collide; the fixture must not
+// either. (This bit me: with a shared ref the V3 cases failed on a cache
+// hit, which looks identical to a routing failure.)
+const LOCK_V2 = "b2".repeat(32);
+const LOCK_V3 = "b3".repeat(32);
+const LOCK_LIED = "b1".repeat(32);
 
 // A real keypair, so the claim's recipient signature and the covenant's
 // pinned x-only key are the same key — the script has to actually verify.
@@ -101,13 +109,11 @@ const V2 = deriveAskCovenant(
 );
 
 const baseRecord = {
-  askRef: LOCK_TXID,
   senderAddress: SENDER_ADDR,
   recipientAddress: RECIPIENT_ADDR,
   amountSompi: AMOUNT.toString(),
   messageCiphertext: "00".repeat(80),
   deadline: DEADLINE.toString(),
-  lockTxid: LOCK_TXID,
   claimTxid: null,
   refundTxid: null,
   status: "open" as const,
@@ -115,24 +121,33 @@ const baseRecord = {
 
 const v3Record: AskRecordDto = {
   ...baseRecord,
+  askRef: LOCK_V3,
+  lockTxid: LOCK_V3,
   protocolVersion: 2,
   askId: ASK_ID,
   refundAllowance: V3.refundAllowance.toString(),
 };
 const v2Record: AskRecordDto = {
   ...baseRecord,
+  askRef: LOCK_V2,
+  lockTxid: LOCK_V2,
   protocolVersion: 1,
   askId: null,
   refundAllowance: null,
 };
 /** Genuinely V3 and genuinely funded at the V3 address — only the version
  * FIELD says otherwise. Routing must follow the chain, not the field. */
-const liedV3Record: AskRecordDto = { ...v3Record, protocolVersion: 1 };
+const liedV3Record: AskRecordDto = {
+  ...v3Record,
+  askRef: LOCK_LIED,
+  lockTxid: LOCK_LIED,
+  protocolVersion: 1,
+};
 
 /** Fake node. Funds exactly one P2SH; records what was submitted. Only the
  * three methods the real code path calls are implemented — anything else it
  * reaches for is an unmodelled dependency and should throw, loudly. */
-function fakeRpc(fundedAddress: string, daaScore: bigint) {
+function fakeRpc(fundedAddress: string, daaScore: bigint, lockTxid: string) {
   const submitted: { payloadHex: string; outputs: { value: bigint; spk: string }[] }[] =
     [];
   const queried: string[] = [];
@@ -145,7 +160,7 @@ function fakeRpc(fundedAddress: string, daaScore: bigint) {
         entries: [
           {
             address: fundedAddress,
-            outpoint: { transactionId: LOCK_TXID, index: 0 },
+            outpoint: { transactionId: lockTxid, index: 0 },
             amount: AMOUNT,
             scriptPublicKey: payToAddressScript(fundedAddress),
             blockDaaScore: 1n,
@@ -191,7 +206,7 @@ describe("VACUITY CONTROL — the two versions are distinguishable", () => {
 
 describe("claimAsk routes to the V3 builder on the real path", () => {
   it("CONTROL: a V2 record still produces a V2 claim", async () => {
-    const { rpc, submitted } = fakeRpc(V2.p2shAddress, CURRENT_DAA);
+    const { rpc, submitted } = fakeRpc(V2.p2shAddress, CURRENT_DAA, LOCK_V2);
     await claimAsk(rpc, v2Record, RECIPIENT_PRIV, "hello");
     expect(submitted).toHaveLength(1);
     // The V2 payload carries the short header and NO askId — byte 15 begins
@@ -201,7 +216,7 @@ describe("claimAsk routes to the V3 builder on the real path", () => {
   });
 
   it("a V3 record produces a V3 claim, askId bound in, through claimAsk", async () => {
-    const { rpc, submitted } = fakeRpc(V3.p2shAddress, CURRENT_DAA);
+    const { rpc, submitted } = fakeRpc(V3.p2shAddress, CURRENT_DAA, LOCK_V3);
     await claimAsk(rpc, v3Record, RECIPIENT_PRIV, "hello");
     expect(
       submitted,
@@ -217,7 +232,7 @@ describe("claimAsk routes to the V3 builder on the real path", () => {
   });
 
   it("a flipped version field does NOT downgrade the claim", async () => {
-    const { rpc, submitted } = fakeRpc(V3.p2shAddress, CURRENT_DAA);
+    const { rpc, submitted } = fakeRpc(V3.p2shAddress, CURRENT_DAA, LOCK_LIED);
     await claimAsk(rpc, liedV3Record, RECIPIENT_PRIV, "hello");
     expect(
       submitted,
@@ -231,7 +246,7 @@ describe("claimAsk routes to the V3 builder on the real path", () => {
 
 describe("maybeAutoRefund routes to the V3 builder on the real path", () => {
   it("CONTROL: a V2 record still produces a V2 refund", async () => {
-    const { rpc, submitted } = fakeRpc(V2.p2shAddress, DEADLINE);
+    const { rpc, submitted } = fakeRpc(V2.p2shAddress, DEADLINE, LOCK_V2);
     const txid = await maybeAutoRefund(rpc, v2Record);
     expect(txid).not.toBeNull();
     expect(submitted).toHaveLength(1);
@@ -242,7 +257,7 @@ describe("maybeAutoRefund routes to the V3 builder on the real path", () => {
   });
 
   it("a V3 record produces a V3 refund priced on its own allowance", async () => {
-    const { rpc, submitted } = fakeRpc(V3.p2shAddress, DEADLINE);
+    const { rpc, submitted } = fakeRpc(V3.p2shAddress, DEADLINE, LOCK_V3);
     const txid = await maybeAutoRefund(rpc, v3Record);
     expect(
       txid,
@@ -280,7 +295,7 @@ describe("maybeAutoRefund routes to the V3 builder on the real path", () => {
   });
 
   it("a flipped version field does NOT strand the refund", async () => {
-    const { rpc, submitted, queried } = fakeRpc(V3.p2shAddress, DEADLINE);
+    const { rpc, submitted, queried } = fakeRpc(V3.p2shAddress, DEADLINE, LOCK_LIED);
     const txid = await maybeAutoRefund(rpc, liedV3Record);
     expect(txid).not.toBeNull();
     expect(submitted[0].outputs[0].value).toBeGreaterThan(
@@ -292,7 +307,7 @@ describe("maybeAutoRefund routes to the V3 builder on the real path", () => {
   });
 
   it("fails closed: neither covenant funded ⇒ no transaction at all", async () => {
-    const { rpc, submitted } = fakeRpc("kaspatest:qqunfunded", DEADLINE);
+    const { rpc, submitted } = fakeRpc("kaspatest:qqunfunded", DEADLINE, LOCK_V3);
     expect(await maybeAutoRefund(rpc, v3Record)).toBeNull();
     expect(
       submitted,
