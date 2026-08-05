@@ -654,7 +654,10 @@ export async function maybeAutoRefund(
     getCovenantUtxo,
     buildRefundTransaction,
     buildRefundTransactionV3,
-    isChainRejection,
+    // NOTE: `isChainRejection` is deliberately NOT imported here any more.
+    // It remains exported for the integration suites, which use it to
+    // assert that a rejection came from the chain at all — a legitimate use.
+    // It is not fit to decide whether MONEY is safe (OPW-4, below).
   } = await import("./ask");
 
   // Oracle, memoised: the same UTXO lookup this function already needs
@@ -707,9 +710,35 @@ export async function maybeAutoRefund(
     await cacheAsk({ ...record, status: "refunded", refundTxid: transactionId });
     return transactionId;
   } catch (e) {
-    // A racing watcher may have refunded first (double-spend rejection) â€”
-    // that is success for the protocol; re-derivation will settle status.
-    if (isChainRejection(e)) return null;
+    // OPW-4. `null` means "someone else already closed this — stop"; a
+    // throw means "the broadcast failed — try again". Getting that wrong in
+    // the safe-looking direction strands the sender's money: `activity.tsx`
+    // marks the ask attempted BEFORE awaiting and un-marks it only in
+    // `catch`, so a `null` is final for the session.
+    //
+    // This used to be decided by `isChainRejection`, which matches the bare
+    // substring "RPC Server (remote error)" — a banner carried by EVERY
+    // remote failure, transient ones included. A dropped socket was
+    // therefore reported as "already refunded".
+    //
+    // Narrowing the substring is not the fix: only ONE real rejection
+    // string is in evidence (the Phase 3 racing-watcher case), and
+    // enumerating the rest would be inventing consensus behaviour (R6).
+    // So the message is not consulted at all. The CHAIN decides, which is
+    // the same rule the rest of this file follows:
+    //
+    //   escrow gone   -> somebody closed it. Terminal. Return null.
+    //   still funded  -> our transaction did not land. Throw, and retry.
+    //
+    // Bounded, not endless: a competing refund sitting in the mempool still
+    // shows the UTXO as unspent, so this retries for the few seconds until
+    // that transaction is accepted — then the escrow disappears and the
+    // next pass returns null. A completed refund cannot retry forever.
+    //
+    // A node too broken to answer the re-read throws from here as well,
+    // which is also "retry" — the correct reading when nothing is known.
+    const stillFunded = await getCovenantUtxo(rpc, cov.p2shAddress);
+    if (!stillFunded) return null;
     throw e;
   }
 }

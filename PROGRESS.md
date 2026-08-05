@@ -78,6 +78,54 @@ server/cache-layer pass is separate. And Phase 2 is NOT the live proof: no
 chain transaction has been broadcast under V3 through the shipping client.
 That is Phase 3, and `hardened-v1` stays unhanded until it passes.
 
+### OPW-4 CLOSED — transient node error no longer strands a refund (2026-08-05)
+
+Taken FIRST of the four, ahead of OPW-1, on the human's call: OPW-4 is the
+regression the migration ACTIVATED. Before the wiring the client created V2
+Asks whose refunds it rarely executed; now V3 is live and auto-refunds
+actually fire, so the path this silenced is precisely the stranded-refund
+recovery it exists to perform. Money-recovery regression before deception.
+
+**The bug.** `maybeAutoRefund` returns `string | null`, and `null` carried
+two incompatible meanings — "already closed, stop" and "broadcast failed,
+retry". `isChainRejection` collapsed them by matching the bare substring
+`"RPC Server (remote error)"`, which every remote failure carries.
+`activity.tsx` marks the ask attempted BEFORE awaiting and un-marks only in
+`catch`; `null` does not throw. One dropped socket therefore suppressed
+auto-refund for the whole session, leaving the sender's money locked.
+
+**Why the fix is not "narrow the substring".** Exactly ONE real rejection
+string is in evidence — the racing-watcher conflict observed in the Phase 3
+run ("output (…) already spent by transaction … in the mempool"). Writing
+the others from memory would be inventing consensus behaviour (R6). So the
+message is not consulted at all: after a failed submit the CHAIN is
+re-read. Escrow gone → terminal, return null. Still funded → the
+transaction did not land, throw. A node too broken to answer the re-read
+also throws, which is the right reading when nothing is known.
+
+**Bounded, deliberately.** A competing refund sitting in the mempool still
+shows the UTXO as unspent, so this retries for the seconds until that
+transaction is accepted, then stops. A completed refund cannot retry
+forever — asserted as a control, not assumed.
+
+**Both directions proven** (`tests/unit/opw4-refund-retry.test.ts`, RED at
+`aec0464`, 2 failed / 5 passed, failing with "promise resolved null instead
+of rejecting"):
+- FIX: a transient error throws while the escrow is still funded; repeated
+  failures do not latch, and the refund completes once the node recovers.
+- CONTROL: healthy refund returns its txid; an escrow already gone returns
+  null with zero broadcasts; the REAL Phase 3 conflict string returns null;
+  a completed refund stays completed on a second pass (one submit total).
+- A source-shape check pins the caller's half of the contract — the effect
+  marks before awaiting and un-marks only in `catch`.
+
+**Gate:** lint clean, build clean, 116/116 unit, and the live suite re-run
+as a regression gate — 11/11 again, new txids `4ffa5a30…` (V3 lock) /
+`49aeea19…` (V3 refund) / `7814e481…` (V2 lock) / `1603f48c…` (V2 refund).
+The change touches only the catch path, which the green Phase 3 run never
+entered, so the live re-run is what proves no regression on the success
+path rather than the unit suite.
+
 ### V3 WIRING MIGRATION — Phase 3 GREEN, live on chain (2026-08-05)
 
 `tests/integration/shipped-path-v3.test.ts` — 11/11 green on testnet-10.

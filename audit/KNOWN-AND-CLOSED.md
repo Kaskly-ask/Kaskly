@@ -130,12 +130,26 @@ be marked closed by the wiring work.
 
 All four were PROVEN by the fourth internal pass with passing controls.
 
+**OPW-4 is now FIXED** (2026-08-05) — it was taken first, ahead of OPW-1,
+because it is the one the V3 wiring ACTIVATED: auto-refunds only started
+firing for real when V3 went live, so the path this silenced is the
+stranded-refund recovery it exists to perform. The classifier is gone from
+the decision; `maybeAutoRefund` now re-reads the covenant UTXO after a
+failed submit — escrow gone means terminal (`null`), still funded means the
+broadcast failed (throw, and `activity.tsx` retries). Proven both
+directions in `tests/unit/opw4-refund-retry.test.ts`: two FIX cases
+(transient error throws; no latching across repeated failures until the
+node recovers) and four CONTROL cases (healthy refund, escrow already gone,
+the REAL racing-watcher conflict from the Phase 3 run, and a completed
+refund staying completed). Committed RED at `aec0464`. OPW-1..3 remain
+OPEN.
+
 | ID | Defect | Why the migration will not fix it |
 |---|---|---|
 | **OPW-1** | **Unauthenticated POST rewrites the displayed MESSAGE of a chain-verified Ask.** `deriveStatusFromChain` re-verifies sender/recipient/amount/deadline/lockTxid against chain state, but **never `messageCiphertext`** — so a swapped message keeps `verification: "ok"` and the inbox paints "✓ escrowed" over it. Because `encryptKasia1` is a public-key operation and the recipient's x-only key comes from their address, an unauthenticated attacker crafts a blob decrypting to text of their choosing. PoC drove this against a live server: attacker-chosen phishing text under the verified badge. | The migration changes which covenant is built; it does not add auth to `/api/asks`, and it does not bring `messageCiphertext` under chain verification. Extends known-OPEN **F18** from "hide + suppress refund" to **positive content injection**. |
 | **OPW-2** | **A single REST indexer is the sole authority for every settled verdict.** Once the covenant UTXO is gone, the funding fact, spender identity, payload, outputs and block time all come from one unauthenticated host, never cross-checked against wRPC. `RestTxLite.is_accepted` is **declared and never read**. PoC: a hostile indexer produced `refunded` on a real claim (the exact F14 lie through a different door), inflated "Earned" to 9,999 KAS, and made an Ask vanish. | V3 changes the covenant, not the verdict pipeline. `deriveStatusFromChain` reads REST identically for V2 and V3. |
 | **OPW-3** | **50 dust payments evict the rebuild window.** `asks-client.ts` requests `full-transactions?limit=50` with no pagination, and BOTH load-bearing predicates (`funded`, `spender`) must find their rows inside it. Results are newest-first (confirmed against the live indexer), the covenant P2SH is publicly derivable, and anyone may pay to it. PoC: 50 dust rows → `rebuildFromChain` returns `[]`, i.e. **the designated recovery action loses the Ask**. | Distinct mechanism from known-OPEN **F16** (which jams `getCovenantUtxo`); this evicts the REST window and takes recovery with it. The window is version-agnostic. |
-| **OPW-4** | **Any RPC error string permanently suppresses auto-refund for the session.** `isChainRejection` matches the bare substring `"RPC Server (remote error)"`, which every remote failure carries; `maybeAutoRefund` converts it to `return null` — the same value meaning "someone else already refunded" — and `activity.tsx` marks the ask attempted BEFORE awaiting, rolling back only in `catch`. `null` does not throw. PoC: attempt 1 attempted, attempts 2–3 skipped, never retried until reload. | The suppression is in the auto-refund effect, untouched by V3. Worse after wiring, not better: the failure it silences is exactly the stranded-refund case. |
+| **OPW-4** ✅ **FIXED 2026-08-05** | **Any RPC error string permanently suppresses auto-refund for the session.** `isChainRejection` matches the bare substring `"RPC Server (remote error)"`, which every remote failure carries; `maybeAutoRefund` converts it to `return null` — the same value meaning "someone else already refunded" — and `activity.tsx` marks the ask attempted BEFORE awaiting, rolling back only in `catch`. `null` does not throw. PoC: attempt 1 attempted, attempts 2–3 skipped, never retried until reload. | The suppression is in the auto-refund effect, untouched by V3. Worse after wiring, not better: the failure it silences is exactly the stranded-refund case. |
 
 **Fix sketches** (not started): OPW-1 authenticate writes or stop rendering
 cached messages under a verified badge; OPW-2 re-fetch the spender by txid
