@@ -7,7 +7,12 @@
 //   2. claim construction is refused once currentDaa >= deadline
 //      (claimAsk throws DeadlinePassedError before touching the covenant).
 import type { RpcClient } from "kaspa-wasm";
-import { type AskRecordDto, type AskStatus, validateAskRecord } from "./ask-record";
+import {
+  type AskRecordDto,
+  type AskStatus,
+  type ProtocolVersion,
+  validateAskRecord,
+} from "./ask-record";
 import { NETWORK_ID, REST_API_BASE } from "./config";
 
 export class DeadlinePassedError extends Error {
@@ -92,7 +97,36 @@ export async function covenantFor(record: {
   recipientAddress: string;
   amountSompi: string;
   deadline: string;
+  protocolVersion?: ProtocolVersion;
+  askId?: string | null;
+  refundAllowance?: string | null;
 }): Promise<CovenantView> {
+  // V3 (protocol v2): the covenant is derived from the per-Ask askId and
+  // allowance, NOT from the V2 fixed-allowance arithmetic. Routing a V3
+  // record through the V2 derivation produces the WRONG P2SH, so §4 fails,
+  // the row is filtered from both screens, and maybeAutoRefund no-ops
+  // against an address that was never funded.
+  if (record.protocolVersion === 2) {
+    const { deriveAskCovenantV3, xOnlyFromAddress } = await import("./ask");
+    if (!record.askId || !record.refundAllowance) {
+      throw new Error("v2-protocol record is missing askId/refundAllowance");
+    }
+    const allowance = BigInt(record.refundAllowance);
+    const cov = deriveAskCovenantV3(
+      {
+        recipientXOnlyHex: xOnlyFromAddress(record.recipientAddress),
+        senderAddress: record.senderAddress,
+        deadlineDaa: BigInt(record.deadline),
+        askIdHex: record.askId,
+        refundAllowance: allowance,
+      },
+      NETWORK_ID
+    );
+    // The V3 floor is (funded input − allowance); minRefund is the same
+    // quantity expressed against the announced amount.
+    return { ...cov, minRefund: BigInt(record.amountSompi) - allowance };
+  }
+
   const { deriveAskCovenant, xOnlyFromAddress, REFUND_FEE_ALLOWANCE } =
     await import("./ask");
   const minRefund = BigInt(record.amountSompi) - REFUND_FEE_ALLOWANCE;
@@ -133,9 +167,8 @@ export async function deriveStatusFromChain(
   record: AskRecordDto
 ): Promise<DerivedState> {
   const cov = await covenantFor(record);
-  const { getCovenantUtxo, currentDaaScore, parseAskPayload } = await import(
-    "./ask"
-  );
+  const { getCovenantUtxo, currentDaaScore, parseAskPayload, parseAskPayloadV3 } =
+    await import("./ask");
 
   const utxo = await getCovenantUtxo(rpc, cov.p2shAddress);
   if (utxo) {
@@ -190,7 +223,14 @@ export async function deriveStatusFromChain(
   }
   // Classify the spend: a claim carries a reply payload referencing us.
   try {
-    const parsed = spender.payload ? parseAskPayload(spender.payload) : null;
+    // Try V3 first (its parser returns null for anything that is not V3),
+    // then V2. Before the wiring this read V2 ONLY, so a genuine V3 reply
+    // was classified claimed_unreadable and the reply never surfaced —
+    // the money was correctly reported gone, but the answer the sender
+    // paid for was invisible.
+    const parsed = spender.payload
+      ? (parseAskPayloadV3(spender.payload) ?? parseAskPayload(spender.payload))
+      : null;
     if (
       parsed?.kind === "reply" &&
       parsed.envelope.ref.toLowerCase() === record.lockTxid.toLowerCase()
@@ -281,17 +321,47 @@ export async function sendAsk(
   rpc: RpcClient,
   params: SendAskParams
 ): Promise<AskRecordDto> {
-  const { createAsk } = await import("./ask");
-  const created = await createAsk(rpc, NETWORK_ID, {
+  // THE CLIENT NOW CREATES V3. Until 2026-08-06 this called `createAsk`
+  // (V2), so F12/F13/F21/F22 were live in production while the audit
+  // ledger recorded them fixed — the V3 modules existed but nothing
+  // reached them. tests/unit/v3-reachability.test.ts asserts this call.
+  const { prepareAskV3, createAskV3, currentDaaScore } = await import("./ask");
+  const { payToAddressScript } = await import("kaspa-wasm");
+  const currentDaa = await currentDaaScore(rpc);
+  const prepared = prepareAskV3({
+    networkId: NETWORK_ID,
     senderAddress: params.senderAddress,
-    senderPrivateKeyHex: params.senderPrivateKeyHex,
     recipientAddress: params.recipientAddress,
     amount: params.amountSompi,
     message: params.message,
     deadlineDaa: params.deadlineDaa,
+    // F24: the guards are mandatory and run BEFORE the covenant exists.
+    currentDaa,
+    utxoTemplate: (amount: bigint) =>
+      ({
+        address: params.senderAddress,
+        outpoint: { transactionId: "aa".repeat(32), index: 0 },
+        amount,
+        scriptPublicKey: payToAddressScript(params.senderAddress),
+        blockDaaScore: 1n,
+        isCoinbase: false,
+      }) as unknown as Parameters<typeof prepareAskV3>[0]["utxoTemplate"] extends (
+        a: bigint
+      ) => infer U
+        ? U
+        : never,
+  });
+  const created = await createAskV3(rpc, prepared, {
+    networkId: NETWORK_ID,
+    senderAddress: params.senderAddress,
+    senderPrivateKeyHex: params.senderPrivateKeyHex,
+    amount: params.amountSompi,
   });
   const record = validateAskRecord({
     askRef: created.lockTxid,
+    protocolVersion: 2,
+    askId: created.askIdHex,
+    refundAllowance: created.refundAllowance.toString(),
     senderAddress: params.senderAddress,
     recipientAddress: params.recipientAddress,
     amountSompi: params.amountSompi.toString(),

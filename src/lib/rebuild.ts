@@ -62,6 +62,12 @@ function candidateFromEnvelope(
 ): AskRecordDto {
   return {
     askRef: lockTxid,
+    // This helper takes a V2 AskEnvelope, so the record is V2 by
+    // construction. A V3 rebuild path needs its own helper — see the
+    // rebuild gap noted in the migration entry in PROGRESS.md.
+    protocolVersion: 1,
+    askId: null,
+    refundAllowance: null,
     senderAddress: env.sender,
     recipientAddress: env.recipient,
     amountSompi: (BigInt(env.minRefund) + REFUND_FEE_ALLOWANCE).toString(),

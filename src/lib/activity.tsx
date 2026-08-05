@@ -206,8 +206,18 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
             "amountSompi" in env
               ? env.amountSompi // V3 announces it explicitly
               : (BigInt(env.minRefund) + REFUND_FEE_ALLOWANCE).toString();
+          // The version is DETECTED here and must be RECORDED, not
+          // discarded: every downstream read site derives its covenant from
+          // it. Discarding it is what made a V2 and a V3 record
+          // indistinguishable once cached.
+          const isV3 = "amountSompi" in env;
           const candidate: AskRecordDto = {
             askRef: txid,
+            protocolVersion: isV3 ? 2 : 1,
+            askId: isV3 ? (env as { askId: string }).askId : null,
+            refundAllowance: isV3
+              ? (env as { refundAllowance: string }).refundAllowance
+              : null,
             senderAddress: env.sender,
             recipientAddress: env.recipient,
             amountSompi,

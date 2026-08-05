@@ -8,6 +8,9 @@ export type { AskRecordDto, AskStatus };
 
 interface AskRow {
   askRef: string;
+  protocolVersion: number;
+  askId: string | null;
+  refundAllowance: bigint | null;
   senderAddress: string;
   recipientAddress: string;
   amountSompi: bigint;
@@ -22,6 +25,10 @@ interface AskRow {
 function toDto(row: AskRow): AskRecordDto {
   return {
     askRef: row.askRef,
+    // Rows predating the V3 wiring have protocol_version defaulted to 1.
+    protocolVersion: row.protocolVersion === 2 ? 2 : 1,
+    askId: row.askId,
+    refundAllowance: row.refundAllowance?.toString() ?? null,
     senderAddress: row.senderAddress,
     recipientAddress: row.recipientAddress,
     amountSompi: row.amountSompi.toString(),
@@ -38,6 +45,10 @@ function toDto(row: AskRow): AskRecordDto {
  * same ask from the chain converges to the same row. */
 export async function upsertAsk(dto: AskRecordDto): Promise<AskRecordDto> {
   const data = {
+    protocolVersion: dto.protocolVersion,
+    askId: dto.askId ?? null,
+    refundAllowance:
+      dto.refundAllowance == null ? null : BigInt(dto.refundAllowance),
     senderAddress: dto.senderAddress,
     recipientAddress: dto.recipientAddress,
     amountSompi: BigInt(dto.amountSompi),

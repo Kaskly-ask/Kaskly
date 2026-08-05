@@ -15,6 +15,14 @@ datasource db {
 model Ask {
   id                      String   @id @default(cuid())
   askRef                  String   @unique @map("ask_ref")
+  // Covenant version: 1 = V2 (fixed allowance), 2 = V3 (per-Ask allowance
+  // + askId). Defaulted to 1 so rows written before the V3 wiring migrate
+  // as what they are. Read sites derive the covenant from this.
+  protocolVersion         Int      @default(1) @map("protocol_version")
+  // V3 only — both are covenant parameters, so a V3 row cannot be
+  // verified or refunded without them.
+  askId                   String?  @map("ask_id")
+  refundAllowance         BigInt?  @map("refund_allowance")
   senderAddress           String   @map("sender_address")
   recipientAddress        String   @map("recipient_address")
   // Amount held in sompi (1 KAS = 100_000_000 sompi) as an integer — money is
