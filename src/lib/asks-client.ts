@@ -88,6 +88,10 @@ export interface CovenantView {
   redeemScriptHex: string;
   p2shAddress: string;
   minRefund: bigint;
+  /** The version TRIAL RECONSTRUCTION resolved against the funded address.
+   * Call sites MUST branch on this, never on record.protocolVersion — that
+   * field is a hint and can be flipped by an unauthenticated cache write. */
+  protocolVersion: ProtocolVersion;
 }
 
 /** Cache of resolved versions, keyed by askRef. Resolution is a chain
@@ -126,7 +130,7 @@ async function deriveV2(record: CovenantRecordView): Promise<CovenantView> {
     },
     NETWORK_ID
   );
-  return { ...cov, minRefund };
+  return { ...cov, minRefund, protocolVersion: 1 };
 }
 
 async function deriveV3(record: CovenantRecordView): Promise<CovenantView> {
@@ -145,7 +149,11 @@ async function deriveV3(record: CovenantRecordView): Promise<CovenantView> {
     },
     NETWORK_ID
   );
-  return { ...cov, minRefund: BigInt(record.amountSompi) - allowance };
+  return {
+    ...cov,
+    minRefund: BigInt(record.amountSompi) - allowance,
+    protocolVersion: 2,
+  };
 }
 
 /**
@@ -513,17 +521,26 @@ export async function estimateReplyClaim(
   record: AskRecordDto,
   replyText: string
 ): Promise<{ fee: bigint; net: bigint }> {
-  const { quoteClaimFee, encodeReplyPayload } = await import("./ask");
+  const { quoteClaimFee, encodeReplyPayload, encodeReplyPayloadV3 } =
+    await import("./ask");
   const { payToAddressScript } = await import("kaspa-wasm");
+  // OFFLINE by contract (no rpc here) — so this is the ONE site that uses
+  // the stored version as more than a hint. Safe: a quote moves no money,
+  // and the real claim re-resolves against the chain. A lied version can
+  // only mis-price the preview, and claimAsk quotes again from the resolved
+  // covenant before it builds.
   const cov = await covenantFor(record);
   const plaintextBytes = new TextEncoder().encode(replyText).length;
   // kasia1 blob = nonce(12) + ephemeral(33) + ciphertext(P) + tag(16).
-  const payloadHex = encodeReplyPayload({
-    v: 1,
-    ref: "0".repeat(64),
-    msgEnc: "kasia1",
-    message: "00".repeat(plaintextBytes + 61),
-  });
+  const ref = "0".repeat(64);
+  const message = "00".repeat(plaintextBytes + 61);
+  const payloadHex =
+    cov.protocolVersion === 2
+      ? encodeReplyPayloadV3({
+          askIdHex: record.askId ?? "00".repeat(32),
+          envelope: { v: 2, ref, msgEnc: "kasia1", message },
+        })
+      : encodeReplyPayload({ v: 1, ref, msgEnc: "kasia1", message });
   const spk = payToAddressScript(cov.p2shAddress).toJSON() as unknown as {
     version: number;
     script: string;
@@ -552,25 +569,61 @@ export async function claimAsk(
   recipientPrivateKeyHex: string,
   replyText: string
 ): Promise<{ claimTxid: string; net: bigint }> {
-  const { currentDaaScore, getCovenantUtxo, buildClaimTransaction } =
-    await import("./ask");
+  const {
+    currentDaaScore,
+    getCovenantUtxo,
+    buildClaimTransaction,
+    buildClaimTransactionV3,
+  } = await import("./ask");
   const daa = await currentDaaScore(rpc);
   if (daa >= BigInt(record.deadline)) throw new DeadlinePassedError();
-  const cov = await covenantFor(record);
-  const utxo = await getCovenantUtxo(rpc, cov.p2shAddress);
+
+  // Oracle: a claimable Ask still holds its lock output, so "funded" is a
+  // live UTXO matching this ask's outpoint and amount. Memoised, so the
+  // resolution costs nothing beyond the lookup this function already makes.
+  const utxos = new Map<string, Awaited<ReturnType<typeof getCovenantUtxo>>>();
+  const isFunded = async (p2sh: string) => {
+    if (!utxos.has(p2sh)) utxos.set(p2sh, await getCovenantUtxo(rpc, p2sh));
+    const u = utxos.get(p2sh);
+    if (!u) return false;
+    const op = u.outpoint as { transactionId: string };
+    return (
+      op.transactionId === record.lockTxid &&
+      BigInt(u.amount) === BigInt(record.amountSompi)
+    );
+  };
+  const cov = await covenantFor(record, isFunded);
+  const utxo = utxos.get(cov.p2shAddress) ?? null;
   if (!utxo) {
     throw new Error("this Ask is no longer claimable (already claimed or refunded)");
   }
-  const tx = buildClaimTransaction({
-    networkId: NETWORK_ID,
-    covenantUtxo: utxo,
-    redeemScriptHex: cov.redeemScriptHex,
-    recipientAddress: record.recipientAddress,
-    recipientPrivateKeyHex,
-    lockTxid: record.lockTxid,
-    replyText,
-    senderAddress: record.senderAddress,
-  });
+
+  // Route on the RESOLVED version. A V3 covenant needs the V3 builder: its
+  // claim payload carries the askId at bytes 18-50, which the covenant
+  // compares — a V2-shaped claim against a V3 covenant is script-invalid.
+  const tx =
+    cov.protocolVersion === 2
+      ? buildClaimTransactionV3({
+          networkId: NETWORK_ID,
+          covenantUtxo: utxo,
+          redeemScriptHex: cov.redeemScriptHex,
+          recipientAddress: record.recipientAddress,
+          recipientPrivateKeyHex,
+          askIdHex: record.askId!,
+          lockTxid: record.lockTxid,
+          replyText,
+          senderAddress: record.senderAddress,
+        })
+      : buildClaimTransaction({
+          networkId: NETWORK_ID,
+          covenantUtxo: utxo,
+          redeemScriptHex: cov.redeemScriptHex,
+          recipientAddress: record.recipientAddress,
+          recipientPrivateKeyHex,
+          lockTxid: record.lockTxid,
+          replyText,
+          senderAddress: record.senderAddress,
+        });
   const net = BigInt(tx.outputs[0].value);
   let transactionId: string;
   try {
@@ -597,18 +650,58 @@ export async function maybeAutoRefund(
   rpc: RpcClient,
   record: AskRecordDto
 ): Promise<string | null> {
-  const { getCovenantUtxo, buildRefundTransaction, isChainRejection } =
-    await import("./ask");
-  const cov = await covenantFor(record);
-  const utxo = await getCovenantUtxo(rpc, cov.p2shAddress);
+  const {
+    getCovenantUtxo,
+    buildRefundTransaction,
+    buildRefundTransactionV3,
+    isChainRejection,
+  } = await import("./ask");
+
+  // Oracle, memoised: the same UTXO lookup this function already needs
+  // doubles as the "is this the funded covenant?" test.
+  const utxos = new Map<string, Awaited<ReturnType<typeof getCovenantUtxo>>>();
+  const isFunded = async (p2sh: string) => {
+    if (!utxos.has(p2sh)) utxos.set(p2sh, await getCovenantUtxo(rpc, p2sh));
+    const u = utxos.get(p2sh);
+    if (!u) return false;
+    const op = u.outpoint as { transactionId: string };
+    return (
+      op.transactionId === record.lockTxid &&
+      BigInt(u.amount) === BigInt(record.amountSompi)
+    );
+  };
+  let cov: CovenantView;
+  try {
+    cov = await covenantFor(record, isFunded);
+  } catch {
+    // No candidate reproduces a funded address: nothing is locked under
+    // either covenant, so there is nothing to refund. Fail closed by doing
+    // NOTHING rather than by broadcasting against a guessed address.
+    return null;
+  }
+  const utxo = utxos.get(cov.p2shAddress) ?? null;
   if (!utxo) return null; // already claimed or refunded
-  const tx = buildRefundTransaction({
-    covenantUtxo: utxo,
-    redeemScriptHex: cov.redeemScriptHex,
-    senderAddress: record.senderAddress,
-    deadlineDaa: BigInt(record.deadline),
-    minRefund: cov.minRefund,
-  });
+
+  // Route on the RESOLVED version. The V3 refund is priced against the
+  // per-Ask allowance the covenant actually pins (F13/F21); the V2 builder's
+  // fixed 500k floor is script-invalid against a V3 covenant.
+  const tx =
+    cov.protocolVersion === 2
+      ? buildRefundTransactionV3({
+          networkId: NETWORK_ID,
+          covenantUtxo: utxo,
+          redeemScriptHex: cov.redeemScriptHex,
+          senderAddress: record.senderAddress,
+          deadlineDaa: BigInt(record.deadline),
+          refundAllowance: BigInt(record.refundAllowance!),
+        })
+      : buildRefundTransaction({
+          covenantUtxo: utxo,
+          redeemScriptHex: cov.redeemScriptHex,
+          senderAddress: record.senderAddress,
+          deadlineDaa: BigInt(record.deadline),
+          minRefund: cov.minRefund,
+        });
   try {
     const { transactionId } = await rpc.submitTransaction({ transaction: tx });
     await cacheAsk({ ...record, status: "refunded", refundTxid: transactionId });
