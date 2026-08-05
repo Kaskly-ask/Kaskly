@@ -43,14 +43,21 @@ export interface PrepareAskV3Params {
   amount: bigint;
   message: string;
   deadlineDaa: bigint;
-  /** The DAA score this deadline was derived from (F24). When supplied,
-   * it is sanity-checked against a recorded anchor and the resulting lock
-   * is bounded to 90 days. Production callers MUST pass it — omitting it
-   * skips the guard, which is only acceptable in fixture tests that build
-   * covenants from synthetic scores. */
-  currentDaa?: bigint;
+  /** The DAA score this deadline was derived from (F24). REQUIRED.
+   *
+   * A5 (fourth audit): this was optional, and the requirement lived in a
+   * doc comment saying "Production callers MUST pass it". Omitting it
+   * skipped BOTH guards — the original F24 PoC value (~1,585 years) was
+   * accepted by the patched function. A guard that can be turned off by
+   * forgetting a parameter is not a guard. Fixture tests that genuinely
+   * need synthetic scores must pass `unsafeSkipDaaGuard: true`, which is
+   * greppable. */
+  currentDaa: bigint;
   /** Injectable clock for the plausibility check. */
   nowMs?: number;
+  /** Fixture-test escape hatch. Deliberately ugly and greppable; never set
+   * this in production code. */
+  unsafeSkipDaaGuard?: boolean;
   /** Supply to make derivation deterministic in tests; omit in production. */
   askIdHex?: string;
   /** A UTXO shape for fee measurement (amount is what matters). */
@@ -90,10 +97,17 @@ export function prepareAskV3(params: PrepareAskV3Params): PreparedAskV3 {
   // 499_000_000_000 yields a covenant locked ~1,585 years, invisibly,
   // because the countdown reads the same node. Both guards throw, and the
   // caller must treat that as "refuse to create this Ask".
-  if (params.currentDaa !== undefined) {
-    assertPlausibleDaaScore(params.networkId, params.currentDaa, params.nowMs);
+  if (!params.unsafeSkipDaaGuard) {
+    // Guard 1 returns an INDEPENDENT projection from the recorded anchor;
+    // guard 2 measures the deadline against THAT, never against the score
+    // the node supplied (A3).
+    const projectedDaa = assertPlausibleDaaScore(
+      params.networkId,
+      params.currentDaa,
+      params.nowMs
+    );
     assertDeadlineWithinBound({
-      currentDaa: params.currentDaa,
+      projectedDaa,
       deadlineDaa: params.deadlineDaa,
       ratePerSecond: DAA_ANCHORS[params.networkId]?.ratePerSecond ?? 10,
     });

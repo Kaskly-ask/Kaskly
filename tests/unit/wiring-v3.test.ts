@@ -25,6 +25,7 @@ import {
   randomAskIdHex,
 } from "../../src/lib/ask/node-v3";
 import { deriveAskCovenantV3, ASK_ID_OFFSET, ASK_ID_END } from "../../src/lib/ask/covenant-v3";
+import { DAA_ANCHORS } from "../../src/lib/ask/daa-guard";
 import { parseAskPayloadV3 } from "../../src/lib/ask/protocol-v3";
 import { FeeSolveRefusal } from "../../src/lib/ask/fees-v3";
 import { buildAskRedeemScript } from "../../src/lib/ask/covenant";
@@ -46,6 +47,13 @@ const utxoTemplate = (amount: bigint) =>
     isCoinbase: false,
   }) as unknown as IUtxoEntry;
 
+// A5: currentDaa is now REQUIRED, so these fixtures use anchor-derived
+// values and exercise the guards for real rather than opting out.
+const ANCHOR = DAA_ANCHORS[NETWORK_ID];
+const NOW_MS = ANCHOR.observedAtMs + 86_400_000; // one day after the anchor
+const CURRENT_DAA = ANCHOR.daaScore + BigInt(86_400 * ANCHOR.ratePerSecond);
+const DEADLINE = CURRENT_DAA + BigInt(7 * 86_400 * ANCHOR.ratePerSecond);
+
 const prepare = (amount: bigint, askIdHex?: string) =>
   prepareAskV3({
     networkId: NETWORK_ID,
@@ -53,7 +61,9 @@ const prepare = (amount: bigint, askIdHex?: string) =>
     recipientAddress: ADDR,
     amount,
     message: "wiring check",
-    deadlineDaa: 1_000_000n,
+    deadlineDaa: DEADLINE,
+    currentDaa: CURRENT_DAA,
+    nowMs: NOW_MS,
     askIdHex,
     utxoTemplate,
   });

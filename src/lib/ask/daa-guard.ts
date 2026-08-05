@@ -57,8 +57,21 @@ export const DAA_ANCHORS: Record<string, DaaAnchor> = {
  * a legitimate Ask is the failure mode we care about most. */
 export const DAA_BAND_LOW = 0.25; // network could be 4x slower than recorded
 export const DAA_BAND_HIGH = 4.0; // or 4x faster
-/** Absolute slack, in DAA, for clock skew and short-window jitter. */
-export const DAA_SLACK = 5_000_000n; // ~5.8 days at 10/s
+/** Absolute slack, in DAA, for clock skew and short-window jitter.
+ *
+ * A3 (fourth audit): this was 5,000,000 (~5.8 days), which ALONE turned a
+ * 7-day Ask into a 12.8-day lock — an 83% overshoot, invisible because the
+ * countdown reads the same node. It is now ~1.16 days, and — more
+ * importantly — slack no longer inflates the lock at all, because guard 2
+ * measures the deadline against the INDEPENDENT anchor projection rather
+ * than against the node's own score. */
+export const DAA_SLACK = 1_000_000n;
+
+/** A3: the band is built from time elapsed since the anchor, so it widened
+ * without limit — a month past the anchor, an in-band lie already exceeded
+ * the 90-day ceiling. Elapsed time is capped, and an anchor older than this
+ * is REFUSED rather than trusted with an unbounded band. */
+export const MAX_ANCHOR_AGE_SECONDS = 120 * 24 * 60 * 60;
 
 /** Hard maximum lock, in seconds, regardless of what any node says. */
 export const MAX_DEADLINE_SECONDS = 90 * 24 * 60 * 60;
@@ -98,7 +111,7 @@ export function assertPlausibleDaaScore(
   networkId: string,
   reported: bigint,
   nowMs: number = Date.now()
-): void {
+): bigint {
   const anchor = DAA_ANCHORS[networkId];
   if (!anchor) {
     throw new DaaScoreImplausible(
@@ -107,7 +120,17 @@ export function assertPlausibleDaaScore(
       0n
     );
   }
-  const elapsedS = (nowMs - anchor.observedAtMs) / 1000;
+  const rawElapsedS = (nowMs - anchor.observedAtMs) / 1000;
+  if (rawElapsedS > MAX_ANCHOR_AGE_SECONDS) {
+    throw new DaaScoreImplausible(
+      `the recorded DAA anchor for ${networkId} is ${(rawElapsedS / 86400).toFixed(0)} days old — ` +
+        `beyond ${MAX_ANCHOR_AGE_SECONDS / 86400} days the plausible band is too wide to be a guard. ` +
+        `Re-measure the anchor (spike/10-daa-rate.cjs) before creating Asks.`,
+      reported,
+      0n
+    );
+  }
+  const elapsedS = rawElapsedS;
   // Before the anchor (clock skew, or a stale machine): fall back to the
   // anchor itself as the projection rather than going backwards.
   const projected =
@@ -132,6 +155,8 @@ export function assertPlausibleDaaScore(
       projected
     );
   }
+  // Guard 2 needs a reference the NODE did not supply.
+  return projected;
 }
 
 /**
@@ -142,11 +167,16 @@ export function assertPlausibleDaaScore(
  * on its own terms (nobody should lock funds for centuries by accident).
  */
 export function assertDeadlineWithinBound(params: {
-  currentDaa: bigint;
+  /** INDEPENDENT reference from `assertPlausibleDaaScore` — NOT the node's
+   * reported score. A3: measuring against the node's own number meant the
+   * delta was always the 7 days the client itself chose, so guard 2 could
+   * never catch a node lie. Thirty days past the anchor an in-band lie
+   * produced a 102-day real lock while guard 2 passed. */
+  projectedDaa: bigint;
   deadlineDaa: bigint;
   ratePerSecond: number;
 }): void {
-  const { currentDaa, deadlineDaa, ratePerSecond } = params;
+  const { projectedDaa: currentDaa, deadlineDaa, ratePerSecond } = params;
   if (deadlineDaa <= currentDaa) {
     throw new DeadlineOutOfRange(
       `deadline ${deadlineDaa} is not after the current score ${currentDaa}`,

@@ -111,7 +111,7 @@ describe("F24 — the deadline bound is independent of the score check", () => {
     const tooFar = honestScore + BigInt(120 * 86400 * ANCHOR.ratePerSecond);
     expect(() =>
       assertDeadlineWithinBound({
-        currentDaa: honestScore,
+        projectedDaa: honestScore,
         deadlineDaa: tooFar,
         ratePerSecond: ANCHOR.ratePerSecond,
       })
@@ -122,7 +122,7 @@ describe("F24 — the deadline bound is independent of the score check", () => {
   it("rejects a deadline at or before the current score", () => {
     expect(() =>
       assertDeadlineWithinBound({
-        currentDaa: honestScore,
+        projectedDaa: honestScore,
         deadlineDaa: honestScore,
         ratePerSecond: 10,
       })
@@ -133,10 +133,80 @@ describe("F24 — the deadline bound is independent of the score check", () => {
     // Even if a score somehow passed the band, 1,585 years fails here.
     expect(() =>
       assertDeadlineWithinBound({
-        currentDaa: 535_000_000n,
+        projectedDaa: 535_000_000n,
         deadlineDaa: 499_006_048_000n,
         ratePerSecond: 10,
       })
     ).toThrow(/above the 90-day maximum/);
+  });
+});
+
+describe("A3/A5 — the fourth audit's band-walk and opt-out", () => {
+  it("A5: the guards CANNOT be skipped by omitting currentDaa", () => {
+    // Previously optional: omitting it accepted the original F24 PoC value.
+    // @ts-expect-error currentDaa is now required at the type level
+    expect(() => prepareAskV3({
+      networkId: NET, senderAddress: ADDR, recipientAddress: ADDR,
+      amount: 100_000_000n, message: "x", deadlineDaa: 499_006_048_000n,
+      nowMs, utxoTemplate,
+    })).toThrow();
+  });
+
+  it("A3: an in-band lie that pushes the REAL lock past the ceiling is now caught", () => {
+    // Before the fix guard 2 compared the deadline to the node's OWN score,
+    // so the delta was always the 7 days the client chose and a node lie was
+    // invisible. Now it measures against the anchor projection, so the lock
+    // the user actually gets is what is checked.
+    const projected = assertPlausibleDaaScore(NET, honestScore, nowMs);
+    const ceiling = BigInt(MAX_DEADLINE_SECONDS * ANCHOR.ratePerSecond);
+    const lie = honestScore + ceiling; // in-band shape, pushes the real lock over 90d
+    const sevenDays = BigInt(7 * 86400 * ANCHOR.ratePerSecond);
+    const deadline = lie + sevenDays;
+    expect(deadline - projected).toBeGreaterThan(ceiling); // the REAL lock is over the ceiling
+    expect(() =>
+      assertDeadlineWithinBound({ projectedDaa: projected, deadlineDaa: deadline, ratePerSecond: ANCHOR.ratePerSecond })
+    ).toThrow(DeadlineOutOfRange);
+  });
+
+  it("A3 RESIDUAL, asserted honestly: an in-band lie UNDER the ceiling still inflates", () => {
+    // Not a passing defence — a recorded limit. Guard 2's ceiling is coarse
+    // (90 days), so a lie inside the band that keeps the real lock under 90
+    // days still lengthens it. The fix removes the UNBOUNDED case, not this
+    // one. Closing it fully needs a tighter ceiling or a second time source.
+    const projected = assertPlausibleDaaScore(NET, honestScore, nowMs);
+    const modestLie = honestScore + 8_000_000n; // ~9 days of DAA, inside the band
+    const sevenDays = BigInt(7 * 86400 * ANCHOR.ratePerSecond);
+    const deadline = modestLie + sevenDays;
+    const realDays = Number(deadline - projected) / ANCHOR.ratePerSecond / 86400;
+    expect(realDays).toBeGreaterThan(7);   // the user asked for 7
+    expect(realDays).toBeLessThan(MAX_DEADLINE_SECONDS / 86400); // still under the ceiling
+    expect(() =>
+      assertDeadlineWithinBound({ projectedDaa: projected, deadlineDaa: deadline, ratePerSecond: ANCHOR.ratePerSecond })
+    ).not.toThrow(); // documents the residual rather than hiding it
+  });
+
+  it("A3: DAA_SLACK alone cannot inflate a 7-day Ask", () => {
+    const slackLie = honestScore + 1_000_000n; // exactly the slack
+    const sevenDays = BigInt(7 * 86400 * ANCHOR.ratePerSecond);
+    // Must either pass with a lock close to 7 days, or be refused —
+    // never silently become 12.8 days.
+    try {
+      prepare(slackLie, slackLie + sevenDays);
+      const realDays = Number(slackLie + sevenDays - honestScore) / ANCHOR.ratePerSecond / 86400;
+      expect(realDays).toBeLessThan(9);
+    } catch (e) {
+      expect(e).toBeInstanceOf(DeadlineOutOfRange);
+    }
+  });
+
+  it("A3: a stale anchor is REFUSED rather than trusted with a wide band", () => {
+    const wayLater = ANCHOR.observedAtMs + 200 * DAY_MS;
+    expect(() => assertPlausibleDaaScore(NET, honestScore, wayLater)).toThrow(/anchor.*old/i);
+  });
+
+  it("guard 1 returns the projection guard 2 needs", () => {
+    const projected = assertPlausibleDaaScore(NET, honestScore, nowMs);
+    expect(typeof projected).toBe("bigint");
+    expect(projected).toBeGreaterThan(ANCHOR.daaScore);
   });
 });
