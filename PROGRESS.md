@@ -78,6 +78,81 @@ server/cache-layer pass is separate. And Phase 2 is NOT the live proof: no
 chain transaction has been broadcast under V3 through the shipping client.
 That is Phase 3, and `hardened-v1` stays unhanded until it passes.
 
+### V3 WIRING MIGRATION — Phase 3 GREEN, live on chain (2026-08-05)
+
+`tests/integration/shipped-path-v3.test.ts` — 11/11 green on testnet-10.
+The first chain broadcasts of this session, and the first proof that the
+hardened covenant is reachable by a user.
+
+**What makes it a proof of the WIRING and not of the builders.** The file
+calls only `sendAsk` / `claimAsk` / `maybeAutoRefund` /
+`deriveStatusFromChain`. It derives no covenant, imports no `*V3` builder,
+and never chooses a version. `lifecycle-v3.test.ts` already proved the
+builders on chain; this proves the browser can reach them.
+
+**Anti-fixture compliance.** Node DAA at run time: **535,375,350** — nine
+digits, asserted in `beforeAll` rather than assumed. Deadlines are live
+offsets (+50,000 DAA claimable, +700 refundable). Amounts are 1 TKAS really
+locked and really returned. The golden vector's `deadlineDaa = 1_000_000`
+appears nowhere in the file.
+
+| stage | txid |
+|---|---|
+| V3 lock via `sendAsk` | `84f4adcf94961f92cd1e0f8473f96c6a17c2d606a46c85805597972dadd973c8` |
+| V3 claim via `claimAsk` | `9b2c3cc965078a83802cd674c7744ee19fee572f9e27c778d59d9da795568c0a` |
+| V3 lock, ignored | `dfdf6ab63be292814918712c327da0b7affe0a7c46ccf7f7cf92ce0e00b51ad3` |
+| V3 refund via `maybeAutoRefund` | `fc1fa643cdc0e8da46e3195df8f09a73568f1e90df6d5b6a2c973534912f57bb` |
+| V2 lock, pre-migration shape | `d183fdc5dd4f3efb3638b5068dbd576871685f72c083f375290410b864bf9ec8` |
+| V2 claim through migrated client | `9d9bf0b85bfa6dbfb15f52399947ba0c739b0fa18c36548e69c67a852070ef89` |
+| V2 lock, ignored | `3fe3478c07c064fb5919a532150e19958a32d13cbbd14231dd3634ca9f4c0037` |
+| V2 refund through migrated client | `bef822edc3f512060a55932b9afd3bf5b1f2ff51e190859d89786851413547f1` |
+
+**F21, closed on live money.** Both Asks locked exactly 100,000,000 sompi;
+both refunds are a single output to the sender, R2-verified from the REST
+indexer (independent of the wRPC node the client used):
+V3 → **99,920,300** (solved fee 79,700). V2 → **99,500,000** (exactly
+`input − 500,000`, the fixed floor, whole allowance to the miner). A 6.3×
+fee difference, from the shipped path, on chain.
+
+**The V2 half is the point of the migration.** It locks an Ask in the
+pre-migration shape — a record with NO `protocolVersion` field, which is
+what cache rows written before today actually look like — and carries it
+through claim and refund on the migrated client. Both settled. Funds locked
+under V2 on the public deploy are not orphaned.
+
+#### First run FAILED, and the attribution mattered
+
+Run 1: Half 1 green (8/8), Half 2 red (3). Not a routing failure:
+
+- The V2 claim fired 471ms after its lock broadcast and hit "no covenant
+  version reproduces a funded address" — trial reconstruction correctly
+  refusing to guess against an unconfirmed escrow. Looks identical to a
+  routing failure; is not one.
+- The second V2 lock was rejected as a double spend: `(4ca8a2ff…, 1)`
+  "already spent by `dc09a471` **in the mempool**" — while a lock sits in
+  the mempool the node still lists the outputs it spends, so the next lock
+  from the same wallet picks one.
+- The third failure reported `verified: true` with status `open` — which
+  is V2 resolution WORKING and correctly reporting that no claim happened.
+
+Fix was to the HARNESS only (`waitVerified`, confirmation before each
+dependent action). No product behaviour was adjusted to make a test pass.
+Recorded here because a red run that gets re-run until green, without
+attribution, is how a real defect gets laundered into a flake.
+
+**Process note.** Vitest swallows stdout on a PASSING run, so the green
+run's txids were only recoverable by re-querying the indexer for both
+addresses and matching on `block_time`. The suite now writes
+`phase3-txids.json` (gitignored) in `afterAll`, which survives either
+outcome.
+
+**Ledger updated.** `audit/KNOWN-AND-CLOSED.md`: F12, F13, F21, F22 and the
+cross-version claim move FIXED-BUT-UNREACHABLE → **FIXED**. The 🔴
+CORRECTION block is left standing with a RESOLVED subsection appended —
+deleting it would remove the record of the error.
+
+**Still open:** OPW-1..4 (server/cache/REST-verdict layers). No tag cut.
+
 ### R4 self-review (V3 wiring Phase 2)
 
 Diff reviewed against D6, A3, A4, C2, §3.3, F13, F18, F21, F22. Deviations:

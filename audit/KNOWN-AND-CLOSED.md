@@ -40,6 +40,64 @@ Quantified on the shipped V2 builder by the fourth pass: sweeping
 600,000 → 10,500,000 sompi, **97 of 100 accepted amounts are unrefundable**
 (0.006–0.102 KAS) — F13 is live in production, guarded only by prose.
 
+### ✅ RESOLVED 2026-08-05 — the wiring landed and was proven on chain
+
+The correction above is left standing deliberately: it is what this file
+said while it was wrong, and deleting it would remove the record of the
+error. What follows is what changed.
+
+**The migration.** `sendAsk` now calls `createAskV3`; `claimAsk`,
+`maybeAutoRefund`, `estimateReplyClaim` and `rebuildFromChain` all handle
+both versions. Which covenant a record uses is resolved by **trial
+reconstruction against the funded address** — both candidates are derived
+and the one reproducing the funded P2SH wins. The stored `protocolVersion`
+is a performance hint only; flipping it cannot change which covenant is
+used, which matters because `/api/asks` is still unauthenticated (F18).
+Failing to match either candidate throws rather than guessing.
+
+**The live proof** (`tests/integration/shipped-path-v3.test.ts`, 11/11
+green, testnet-10 at DAA ≈ 535,375,000 — 9 digits, live). The file calls
+ONLY `sendAsk` / `claimAsk` / `maybeAutoRefund` / `deriveStatusFromChain`.
+It derives no covenant, names no builder, and chooses no version. Every
+amount is R2 dual-verified from the REST indexer, independent of the wRPC
+node the client used.
+
+| stage | txid |
+|---|---|
+| V3 lock (via `sendAsk`) | `84f4adcf94961f92cd1e0f8473f96c6a17c2d606a46c85805597972dadd973c8` |
+| V3 claim (via `claimAsk`) | `9b2c3cc965078a83802cd674c7744ee19fee572f9e27c778d59d9da795568c0a` |
+| V3 lock, then ignored | `dfdf6ab63be292814918712c327da0b7affe0a7c46ccf7f7cf92ce0e00b51ad3` |
+| V3 refund (via `maybeAutoRefund`) | `fc1fa643cdc0e8da46e3195df8f09a73568f1e90df6d5b6a2c973534912f57bb` |
+| V2 lock (pre-migration shape) | `d183fdc5dd4f3efb3638b5068dbd576871685f72c083f375290410b864bf9ec8` |
+| V2 claim through the MIGRATED client | `9d9bf0b85bfa6dbfb15f52399947ba0c739b0fa18c36548e69c67a852070ef89` |
+| V2 lock, then ignored | `3fe3478c07c064fb5919a532150e19958a32d13cbbd14231dd3634ca9f4c0037` |
+| V2 refund through the MIGRATED client | `bef822edc3f512060a55932b9afd3bf5b1f2ff51e190859d89786851413547f1` |
+
+**F21 is visible in those numbers.** Both Asks locked exactly 1 TKAS
+(100,000,000 sompi) and both refunds are a single output to the sender:
+
+- V3 refund returned **99,920,300** — a solved fee of 79,700 sompi.
+- V2 refund returned **99,500,000** — exactly `input − 500,000`, the fixed
+  floor, the whole allowance surrendered to the miner.
+
+A **6.3× fee difference on real money**, on chain, from the shipped path.
+"Above the floor" would not have distinguished the builders; only the
+strict inequality does, and only the V3 builder satisfies it.
+
+**In-flight V2 funds are not orphaned.** The second half locks a V2 Ask in
+the pre-migration shape — a record with no `protocolVersion` at all, which
+is what cached rows written before the migration actually look like — and
+carries it through claim and refund on the *migrated* client. Both settled.
+Money locked under V2 on the public deploy remains claimable and
+refundable.
+
+Ledger status for F12, F13, F21, F22 and the cross-version claim therefore
+moves **FIXED-BUT-UNREACHABLE → FIXED**.
+
+**Still true, and not changed by this:** OPEN-POST-WIRING (OPW-1..4) below
+remain open. The wiring touched the covenant layer, not the server, cache,
+or REST-verdict layers.
+
 ---
 
 ## 📌 OPEN-POST-WIRING — defects that OUTLIVE the V3 migration
@@ -110,8 +168,8 @@ reassuring one.
 
 | ID | Finding | Status |
 |---|---|---|
-| **F12** | **CRITICAL.** Refund branch pinned outputs but NOT inputs — N expired covenants of one sender batch-refunded into one output, surplus to the miner. **Proven on chain: 4 KAS locked, 2.995 returned, 0.995 lost.** | **FIXED-BUT-UNREACHABLE** — `OpTxInputCount == 1` on the refund branch. ⚠️ **NOT WIRED — the app still creates V2, so the original defect is LIVE on this tag (see CORRECTION above).** Proof: lock `ceb03d9b…`, drain `ab5575a6…` (V2, confirmed); V3 flip `spike/07-batch-refund-drain.cjs` REFUTED; control `spike/07c-v3-refund-control.cjs` accepted `b269d3f2…`, `bf6d0162…` |
-| **F13** | **CRITICAL.** Asks between 0.005 and ~0.105 KAS lockable but permanently unspendable — KIP-9 storage mass scales inversely with output value, so the fixed 500k-sompi allowance was insufficient. Verified identical on mainnet and testnet-10. | **FIXED-BUT-UNREACHABLE** — per-Ask allowance from a solved fee; ⚠️ **NOT WIRED — the app still creates V2, so the original defect is LIVE on this tag (see CORRECTION above).** `FeeSolveRefusal` refuses rather than guesses. Evidence `audit/verify-refund-mass.cjs`, `tests/unit/fees-v3.test.ts` |
+| **F12** | **CRITICAL.** Refund branch pinned outputs but NOT inputs — N expired covenants of one sender batch-refunded into one output, surplus to the miner. **Proven on chain: 4 KAS locked, 2.995 returned, 0.995 lost.** | **FIXED** — `OpTxInputCount == 1` on the refund branch. (wired 2026-08-05; see RESOLVED block.) Proof: lock `ceb03d9b…`, drain `ab5575a6…` (V2, confirmed); V3 flip `spike/07-batch-refund-drain.cjs` REFUTED; control `spike/07c-v3-refund-control.cjs` accepted `b269d3f2…`, `bf6d0162…` |
+| **F13** | **CRITICAL.** Asks between 0.005 and ~0.105 KAS lockable but permanently unspendable — KIP-9 storage mass scales inversely with output value, so the fixed 500k-sompi allowance was insufficient. Verified identical on mainnet and testnet-10. | **FIXED** — per-Ask allowance from a solved fee; (wired 2026-08-05; see RESOLVED block.) `FeeSolveRefusal` refuses rather than guesses. Evidence `audit/verify-refund-mass.cjs`, `tests/unit/fees-v3.test.ts` |
 | **F14** | **HIGH.** Status derivation fell through to `refunded` whenever the spender payload was not a matching reply — including when parsing THREW. A garbage-body claim told the sender "every sompi is back in your wallet" while the recipient took the money; rebuild-from-chain reproduced the lie. | **FIXED** — positive refund test (exactly one output, to sender, ≥ minRefund); new terminal state `claimed_unreadable` |
 | **F15** | **HIGH.** Firehose reply ingestion sets `answered` from any tx carrying a matching payload, without checking it spent the covenant. | **OPEN** |
 | **F16** | **HIGH.** `getCovenantUtxo` returns `entries[0]` unfiltered — one dust payment to the publicly-derivable P2SH jams claim, refund and display. | **OPEN** |
@@ -119,15 +177,15 @@ reassuring one.
 | **F18** | **HIGH.** `/api/asks` POST/DELETE unauthenticated — can hide a real Ask and suppress its auto-refund. | **OPEN** |
 | **F19** | **MEDIUM.** No CSP or security headers. | **PARTIAL** — `frame-ancestors 'none'`, `X-Frame-Options: DENY`, Referrer-Policy, nosniff added (F25). **No `script-src`** — still open |
 | **F20** | Mis-filed as MEDIUM (DAA constant). **Superseded by F24.** | see F24 |
-| **F21** | **MEDIUM.** Refunds paid exactly the floor, handing the miner the whole allowance. | **FIXED-BUT-UNREACHABLE** — pays `input − solved fee`; ⚠️ **NOT WIRED — the app still creates V2, so the original defect is LIVE on this tag (see CORRECTION above).** shown on chain (0.999/2.999 vs floors 0.995/2.995) |
-| **F22** | **CRITICAL.** Claim branch checked only the 15-byte prefix — one reply payload could claim several senders' Asks. | **FIXED-BUT-UNREACHABLE** — per-Ask `askId` at payload[18:50]. ⚠️ **NOT WIRED — the app still creates V2, so the original defect is LIVE on this tag (see CORRECTION above).** Proof `spike/08-cross-ask-claim.cjs`: two-sender and same-lock-tx variants rejected, all four controls accepted |
+| **F21** | **MEDIUM.** Refunds paid exactly the floor, handing the miner the whole allowance. | **FIXED** — pays `input − solved fee`; (wired 2026-08-05; see RESOLVED block.) shown on chain (0.999/2.999 vs floors 0.995/2.995) |
+| **F22** | **CRITICAL.** Claim branch checked only the 15-byte prefix — one reply payload could claim several senders' Asks. | **FIXED** — per-Ask `askId` at payload[18:50]. (wired 2026-08-05; see RESOLVED block.) Proof `spike/08-cross-ask-claim.cjs`: two-sender and same-lock-tx variants rejected, all four controls accepted |
 | **F23** | **MEDIUM.** ASKSPEC/TRUST claimed more than the opcodes enforce. | **FIXED** — corrections in ASKSPEC §0, TRUST.md, design §6/§9 |
 
 ## SECOND PASS — the V3 fix's own surface
 
 | Finding | Status |
 |---|---|
-| **Cross-version claim (CRITICAL).** V2's claim branch checks only `payload[0:15]`, and the V3 header `ciph_msg:1:ask:r2:` BEGINS with those bytes — one V3 payload satisfied a V2 covenant too, so a recipient holding one of each claimed both. | **FIXED-BUT-UNREACHABLE** — `OpTxInputCount == 1` on the V3 CLAIM branch. ⚠️ **NOT WIRED — the app still creates V2, so the original defect is LIVE on this tag (see CORRECTION above).** Proof `spike/13-cross-version-claim.cjs`: mixed rejected `53e07c5d…`; controls V2 alone `2ae6e85c…`, V3 alone `6ef24aeb…` |
+| **Cross-version claim (CRITICAL).** V2's claim branch checks only `payload[0:15]`, and the V3 header `ciph_msg:1:ask:r2:` BEGINS with those bytes — one V3 payload satisfied a V2 covenant too, so a recipient holding one of each claimed both. | **FIXED** — `OpTxInputCount == 1` on the V3 CLAIM branch. (wired 2026-08-05; see RESOLVED block.) Proof `spike/13-cross-version-claim.cjs`: mixed rejected `53e07c5d…`; controls V2 alone `2ae6e85c…`, V3 alone `6ef24aeb…` |
 | **Solver returned its own seed.** `solveRefundFee` returned `guess`, so the fee was always 100,000 and the "per-Ask" allowance a constant 400,000. | **FIXED** — descends to the true minimum. NOTE: the *values* 79,600 / 318,400 come from the golden vector's deadline; at production deadlines the true minimum is 79,700 (see the row below). |
 | **Solver priced the wrong shape.** Sigscript template hardcoded at 117 bytes (V2) against a real 169, then 172. | **RE-BROKEN (4th pass, PROVEN).** The constant 172 is correct ONLY for the golden vector's `deadlineDaa = 1000000` (a 3-byte script number). Live TN10 DAA is 9 digits → 4-byte push → real redeem 170 B, sig script **173 B**, so every refund under-pays by 100 sompi (171/171 amounts swept). The anti-drift test asserts against that same vector and is **blind by construction**. The "PARITY with spike/lib.cjs" comment is false — the spike prices the REAL transaction, which is why the chain proofs passed. |
 | **Large-amount stranding.** Suspected 4-byte operand limit above 21.475 KAS. | **REFUTED on chain** — `spike/12-large-amount-floor.cjs`: 25 KAS refunded (`4396205b…`), control passed |
