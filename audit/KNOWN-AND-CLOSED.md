@@ -42,6 +42,59 @@ Quantified on the shipped V2 builder by the fourth pass: sweeping
 
 ---
 
+## 📌 OPEN-POST-WIRING — defects that OUTLIVE the V3 migration
+
+Recorded separately and deliberately. These live **below** the covenant
+layer, wiring V3 does not touch any of them, and every one is exactly the
+kind of item that gets quietly absorbed into a big migration and never
+looked at again. They get their own pass AFTER the wiring lands. None may
+be marked closed by the wiring work.
+
+All four were PROVEN by the fourth internal pass with passing controls.
+
+| ID | Defect | Why the migration will not fix it |
+|---|---|---|
+| **OPW-1** | **Unauthenticated POST rewrites the displayed MESSAGE of a chain-verified Ask.** `deriveStatusFromChain` re-verifies sender/recipient/amount/deadline/lockTxid against chain state, but **never `messageCiphertext`** — so a swapped message keeps `verification: "ok"` and the inbox paints "✓ escrowed" over it. Because `encryptKasia1` is a public-key operation and the recipient's x-only key comes from their address, an unauthenticated attacker crafts a blob decrypting to text of their choosing. PoC drove this against a live server: attacker-chosen phishing text under the verified badge. | The migration changes which covenant is built; it does not add auth to `/api/asks`, and it does not bring `messageCiphertext` under chain verification. Extends known-OPEN **F18** from "hide + suppress refund" to **positive content injection**. |
+| **OPW-2** | **A single REST indexer is the sole authority for every settled verdict.** Once the covenant UTXO is gone, the funding fact, spender identity, payload, outputs and block time all come from one unauthenticated host, never cross-checked against wRPC. `RestTxLite.is_accepted` is **declared and never read**. PoC: a hostile indexer produced `refunded` on a real claim (the exact F14 lie through a different door), inflated "Earned" to 9,999 KAS, and made an Ask vanish. | V3 changes the covenant, not the verdict pipeline. `deriveStatusFromChain` reads REST identically for V2 and V3. |
+| **OPW-3** | **50 dust payments evict the rebuild window.** `asks-client.ts` requests `full-transactions?limit=50` with no pagination, and BOTH load-bearing predicates (`funded`, `spender`) must find their rows inside it. Results are newest-first (confirmed against the live indexer), the covenant P2SH is publicly derivable, and anyone may pay to it. PoC: 50 dust rows → `rebuildFromChain` returns `[]`, i.e. **the designated recovery action loses the Ask**. | Distinct mechanism from known-OPEN **F16** (which jams `getCovenantUtxo`); this evicts the REST window and takes recovery with it. The window is version-agnostic. |
+| **OPW-4** | **Any RPC error string permanently suppresses auto-refund for the session.** `isChainRejection` matches the bare substring `"RPC Server (remote error)"`, which every remote failure carries; `maybeAutoRefund` converts it to `return null` — the same value meaning "someone else already refunded" — and `activity.tsx` marks the ask attempted BEFORE awaiting, rolling back only in `catch`. `null` does not throw. PoC: attempt 1 attempted, attempts 2–3 skipped, never retried until reload. | The suppression is in the auto-refund effect, untouched by V3. Worse after wiring, not better: the failure it silences is exactly the stranded-refund case. |
+
+**Fix sketches** (not started): OPW-1 authenticate writes or stop rendering
+cached messages under a verified badge; OPW-2 re-fetch the spender by txid
+over wRPC and require `is_accepted`; OPW-3 paginate until the lock txid is
+found and distinguish "no spender" from "window exhausted"; OPW-4 narrow
+`isChainRejection` to genuine double-spend rejections and rethrow otherwise.
+
+Two smaller items from the same pass, also outliving the migration:
+`use-hidden.ts` claims "nothing hidden ever holds claimable money" while
+`expired_pending_refund` is hideable; and `tests/unit/wallet-import.test.ts`
+is flaky ~1 run in 32 (a random address ending in `x` makes the "altered"
+address identical), which trains people to re-run a blocking money-adjacent
+gate rather than investigate.
+
+---
+
+## 🧭 STANDING RULE — do not prove code against the fixture it came from
+
+Three separate versions of the same defect shipped because a measurement
+taken from a fixture was hardcoded, and then asserted against **that same
+fixture**:
+
+- V2 sig script measured at 117 → wrong once V3 existed;
+- V3 measured at 172 from the golden vector's 3-byte deadline → wrong for
+  every 9-digit production DAA;
+- each time, the anti-drift test asserted against the vector that produced
+  the number, so it was **blind by construction**.
+
+**Any proof that asserts against a fixture the code was derived from is not
+a proof.** For the V3 wiring re-proof this is binding: the end-to-end
+create→lock→claim→refund run must use **live-chain values** — real DAA
+magnitudes, real deadlines, real funded amounts — not golden-vector values.
+The golden vector is for detecting drift in the script bytes. It is not
+evidence that anything works.
+
+---
+
 ## ⚠️ Framing this document must not let you forget
 
 Every finding below was found by the SAME CLASS OF REASONER as you, and
