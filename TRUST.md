@@ -126,6 +126,44 @@ app adds, honestly:
   service to return the right address — the address itself is always
   shown before you send.
 
+## A trust assumption we chose on purpose: the transaction indexer
+
+This one is a deliberate design limit, not an oversight, and it is the
+main thing to know before trusting what a *settled* Ask says on screen.
+
+Kaspa nodes do not index transactions by id. A node can tell you what is
+unspent right now, but it cannot hand you an old transaction or an address
+history — that is what a separate *indexer* service is for. This app reads
+one (`api-tn10.kaspa.org`). There is no second source to check it against,
+because building one means running real infrastructure, not writing a
+patch. So we state the assumption rather than paper over it.
+
+**What a dishonest indexer could do:** change the message text you see on
+an Ask, misreport whether a finished Ask was answered or refunded, alter
+the reply text shown to a sender, or make a settled Ask look unresolved.
+That is deception, and it is worth taking seriously.
+
+**What it cannot do — the bound that matters:**
+
+- **It cannot move your money.** Refunds are pinned by the covenant to the
+  sender's address, and claims require the recipient's signature. No
+  indexer, and no operator of this app, has a spend path.
+- **It cannot invent a settlement or hide one.** Whether the escrow is
+  still funded comes from your Kaspa node, not the indexer. The app only
+  consults the indexer *after* the node says the funds have moved.
+- **It cannot forge a message on its own.** Displayed text is checked
+  against the announcement in the lock transaction; a mismatch is refused
+  rather than shown. Faking that requires the indexer *and* a write to
+  this app's cache.
+
+So the honest summary: a hostile indexer can lie to your eyes about a
+finished Ask. It cannot take, redirect, or freeze a single sompi.
+
+Tracked as **OPW-2**, status *documented-and-bounded* — the same standing
+as the mainnet gates: a known assumption with a stated limit, carried
+deliberately, and named as such in the external review brief so a reviewer
+knows it was chosen rather than missed.
+
 ## Always true, regardless of outcome
 
 - **Testnet only** for this entire project (no real money).

@@ -130,6 +130,41 @@ be marked closed by the wiring work.
 
 All four were PROVEN by the fourth internal pass with passing controls.
 
+**OPW-2 is DOCUMENTED-AND-BOUNDED** (2026-08-05) — deliberately not
+"fixed", because there is no client-side fix. Enumerated from the installed
+SDK's own type surface: wRPC exposes `getUtxosByAddresses`, `getBlock(s)`,
+`getVirtualChainFromBlock` and friends, but **no transaction-by-id and no
+address-history method** — kaspad does not index transactions by id, which
+is why indexers exist. Independent corroboration would mean running a
+second indexing service: real infrastructure, not a patch. Faking a fix
+here would be worse than naming the assumption.
+
+The bound, stated so a reviewer can attack it:
+
+- A hostile indexer CAN alter displayed message text, misreport
+  answered-vs-refunded on a settled Ask, alter shown reply text, or make a
+  settled Ask look unresolved. **Deception is in scope.**
+- It CANNOT move funds — refunds are covenant-pinned to the sender and
+  claims need the recipient's signature; no indexer or operator has a spend
+  path.
+- It CANNOT invent or hide a settlement — "is the escrow still funded" is
+  answered by the user's own node over wRPC, and the indexer is consulted
+  only after the node reports the funds gone.
+- It CANNOT forge a message alone — since OPW-1 the displayed ciphertext is
+  checked against the lock transaction's announcement, so a lie produces a
+  refusal, not a forgery. Forgery needs the indexer AND a cache write.
+
+Written up for non-developers in `TRUST.md` ("A trust assumption we chose
+on purpose"). **Carried into the external-review brief as a deliberate
+assumption**, so the reviewer knows it was chosen, not missed.
+
+**Candidate hardening, NOT yet done and deliberately not bundled here:**
+clamp a claim's net-to-recipient to the escrow input amount. That is a
+LOCAL invariant needing zero indexer trust (nothing can pay out more than
+was locked) and it kills the fourth pass's inflated-"Earned" PoC. Also
+`is_accepted` remains declared-and-never-read. Both are open items, not
+part of the OPW-2 status.
+
 **OPW-3 is now FIXED** (2026-08-05), together with **F16**, because they
 compound: F16 broke the UNSPENT path (`getCovenantUtxo` returned
 `entries[0]`, so dust UTXOs displaced the real escrow) and OPW-3 broke the
@@ -184,7 +219,7 @@ OPEN.
 | ID | Defect | Why the migration will not fix it |
 |---|---|---|
 | **OPW-1** ✅ **FIXED 2026-08-05** | **Unauthenticated POST rewrites the displayed MESSAGE of a chain-verified Ask.** `deriveStatusFromChain` re-verifies sender/recipient/amount/deadline/lockTxid against chain state, but **never `messageCiphertext`** — so a swapped message keeps `verification: "ok"` and the inbox paints "✓ escrowed" over it. Because `encryptKasia1` is a public-key operation and the recipient's x-only key comes from their address, an unauthenticated attacker crafts a blob decrypting to text of their choosing. PoC drove this against a live server: attacker-chosen phishing text under the verified badge. | The migration changes which covenant is built; it does not add auth to `/api/asks`, and it does not bring `messageCiphertext` under chain verification. Extends known-OPEN **F18** from "hide + suppress refund" to **positive content injection**. |
-| **OPW-2** | **A single REST indexer is the sole authority for every settled verdict.** Once the covenant UTXO is gone, the funding fact, spender identity, payload, outputs and block time all come from one unauthenticated host, never cross-checked against wRPC. `RestTxLite.is_accepted` is **declared and never read**. PoC: a hostile indexer produced `refunded` on a real claim (the exact F14 lie through a different door), inflated "Earned" to 9,999 KAS, and made an Ask vanish. | V3 changes the covenant, not the verdict pipeline. `deriveStatusFromChain` reads REST identically for V2 and V3. |
+| **OPW-2** 📋 **DOCUMENTED-AND-BOUNDED 2026-08-05** | **A single REST indexer is the sole authority for every settled verdict.** Once the covenant UTXO is gone, the funding fact, spender identity, payload, outputs and block time all come from one unauthenticated host, never cross-checked against wRPC. `RestTxLite.is_accepted` is **declared and never read**. PoC: a hostile indexer produced `refunded` on a real claim (the exact F14 lie through a different door), inflated "Earned" to 9,999 KAS, and made an Ask vanish. | V3 changes the covenant, not the verdict pipeline. `deriveStatusFromChain` reads REST identically for V2 and V3. |
 | **OPW-3** ✅ **FIXED 2026-08-05 (with F16)** | **50 dust payments evict the rebuild window.** `asks-client.ts` requests `full-transactions?limit=50` with no pagination, and BOTH load-bearing predicates (`funded`, `spender`) must find their rows inside it. Results are newest-first (confirmed against the live indexer), the covenant P2SH is publicly derivable, and anyone may pay to it. PoC: 50 dust rows → `rebuildFromChain` returns `[]`, i.e. **the designated recovery action loses the Ask**. | Distinct mechanism from known-OPEN **F16** (which jams `getCovenantUtxo`); this evicts the REST window and takes recovery with it. The window is version-agnostic. |
 | **OPW-4** ✅ **FIXED 2026-08-05** | **Any RPC error string permanently suppresses auto-refund for the session.** `isChainRejection` matches the bare substring `"RPC Server (remote error)"`, which every remote failure carries; `maybeAutoRefund` converts it to `return null` — the same value meaning "someone else already refunded" — and `activity.tsx` marks the ask attempted BEFORE awaiting, rolling back only in `catch`. `null` does not throw. PoC: attempt 1 attempted, attempts 2–3 skipped, never retried until reload. | The suppression is in the auto-refund effect, untouched by V3. Worse after wiring, not better: the failure it silences is exactly the stranded-refund case. |
 
