@@ -91,39 +91,48 @@ export function Header() {
           single row. Neither can widen the document (no unwrapped
           overflow; root overflow-x clip stays as backstop). */}
       <div className="max-w-2xl mx-auto px-3 sm:px-4 pt-3 pb-0 sm:py-4">
-        <div className="flex items-center gap-3 sm:gap-5">
-          {/* Wordmark placeholder — final brand assets pending (public/brand/) */}
-          <Link href="/" className="flex items-baseline gap-2 shrink-0">
-            <span className="text-teal text-xl font-bold tracking-tight">
-              Kaskly
-            </span>
-            <span className="hidden md:inline text-faint text-xs">
-              Just Ask Me
-            </span>
-          </Link>
+        {/* TWO GROUPS, not one flat row. Left = identity + navigation
+            (where you are and where you can go); right = account state
+            (what you have, what network, who you are). Previously the
+            Earned widget floated in a centred flex-1 between them, which
+            gave three competing anchors and no hierarchy. */}
+        <div className="flex items-center gap-4 sm:gap-6">
+          {/* ---- LEFT: identity + navigation ---- */}
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            {/* Wordmark placeholder — final brand assets pending (public/brand/) */}
+            <Link href="/" className="flex items-baseline gap-2 shrink-0">
+              <span className="text-teal text-xl font-bold tracking-tight">
+                Kaskly
+              </span>
+            </Link>
 
-          <nav className="hidden sm:flex items-center gap-1 text-sm">
-            {NAV.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className={`px-3 py-1.5 rounded-md transition-colors ${
-                  pathname === href
-                    ? "text-teal bg-teal/10"
-                    : "text-muted hover:text-foreground"
-                }`}
-              >
-                {label}
-                <UnreadBadge count={badgeFor(href)} />
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex-1 hidden sm:flex justify-center">
-            <EarnedWidget />
+            <nav className="hidden sm:flex items-center gap-1 text-sm">
+              {NAV.map(({ href, label }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${
+                    pathname === href
+                      ? "text-teal bg-teal/10"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                  <UnreadBadge count={badgeFor(href)} />
+                </Link>
+              ))}
+            </nav>
           </div>
 
+          {/* ---- RIGHT: account state. Earned sits WITH the wallet and the
+               network badge because they answer the same question. A hairline
+               separates the balance from the identity controls. ---- */}
           <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+            <EarnedWidget />
+            <span
+              className="hidden sm:block h-5 w-px bg-white/10 shrink-0"
+              aria-hidden
+            />
             <span
               className="text-[10px] font-semibold tracking-widest text-warn border border-warn/40 rounded px-1.5 py-0.5 bg-background"
               title="This app runs on Kaspa testnet-10 only. No real money."

@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
-/* Kaskly theme (brief §5 + 2026-08-04 glass pass): dark near-black ground,
-   Kaspa teal #49EACB as the single accent, refined glassmorphism — frosted
-   translucent surfaces over a faint teal ambient glow. Honesty labels stay
-   high-contrast and never sit on translucency. Dark-only by design. */
+/* Kaskly theme (brief §5): dark near-black ground, Kaspa teal #49EACB as
+   the single accent — used ON elements, never as a wash behind them. Glass
+   panels sit over a neutral ground and a barely-there texture. Honesty
+   labels stay high-contrast and never sit on translucency. Dark-only by
+   design. Register: a payments app — calm and solid, not a launch page. */
 :root {
   --background: #0a0a0a;
   --foreground: #e8eaea;
@@ -69,20 +70,25 @@ body {
 }
 
 /* Ambient scene — the backdrop the glass smears. Two fixed paint-only
-   layers: strong asymmetric teal glows below, a faint drifting texture of
-   the ACTUAL covenant bytes above them (OpIf 0x63 … `ciph_msg:1:ask:` …
-   OpCheckLockTimeVerify 0xb0 — the escrow script itself, as set dressing). */
+   layers: a neutral vertical lift below, and above it a very faint drifting
+   texture of the ACTUAL covenant bytes (OpIf 0x63 … `ciph_msg:1:ask:` …
+   OpCheckLockTimeVerify 0xb0 — the escrow script itself, as set dressing).
+   Both are deliberately near-subliminal; if you can read the hex, it is
+   too strong. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  background:
-    radial-gradient(52rem 36rem at 84% -12%, rgba(73, 234, 203, 0.28), transparent 65%),
-    radial-gradient(46rem 36rem at 34% 30%, rgba(73, 234, 203, 0.12), transparent 60%),
-    radial-gradient(38rem 30rem at -10% 22%, rgba(46, 163, 142, 0.19), transparent 62%),
-    radial-gradient(60rem 42rem at 58% 115%, rgba(73, 234, 203, 0.15), transparent 66%);
+  /* Ambient ground. Was four teal radials up to 0.28 alpha — a colour wash
+     that read as a hyped landing page and competed with the content. This
+     is a payments app; the register is calm and solid, and teal is a sharp
+     ACCENT on elements, never a glow behind them.
+     What remains is a single near-black vertical lift (no hue at all), so
+     the page has depth instead of looking like flat paint, and the glass
+     panels still have something to sample. */
+  background: linear-gradient(180deg, #0d0f10 0%, #0a0a0a 42%);
 }
 
 body::after {
@@ -91,9 +97,13 @@ body::after {
   inset: -25% -15%;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.07;
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='560'%20height='360'%3E%3Cg%20font-family='ui-monospace,monospace'%20font-size='13'%20fill='%2349eacb'%3E%3Ctext%20x='12'%20y='30'%3E63%2000%200f%20b8%2063%2069%2070%2068%205f%206d%2073%2067%3C/text%3E%3Ctext%20x='210'%20y='96'%3E3a%2031%203a%2061%2073%206b%203a%2088%2020%20ac%3C/text%3E%3Ctext%20x='40'%20y='168'%3E64%20b0%20c2%2051%209c%2000%20c3%2088%3C/text%3E%3Ctext%20x='300'%20y='238'%3E00%20c4%20a2%2068%2063%2069%2070%2068%3C/text%3E%3Ctext%20x='120'%20y='318'%3E5f%206d%2073%2067%203a%2031%203a%2061%2073%206b%3C/text%3E%3C/g%3E%3C/svg%3E");
-  background-size: 560px 360px;
+  /* Dialled from 0.07 (2026-08-05): the hex dump was legible as repeating
+     text and competed with the copy. At 0.022, with a smaller glyph and a
+     dimmed fill, it reads as faint grain — you notice a texture, not a
+     string you can accidentally read. */
+  opacity: 0.022;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='560'%20height='360'%3E%3Cg%20font-family='ui-monospace,monospace'%20font-size='9'%20fill='%232ea38e'%3E%3Ctext%20x='12'%20y='30'%3E63%2000%200f%20b8%2063%2069%2070%2068%205f%206d%2073%2067%3C/text%3E%3Ctext%20x='210'%20y='96'%3E3a%2031%203a%2061%2073%206b%203a%2088%2020%20ac%3C/text%3E%3Ctext%20x='40'%20y='168'%3E64%20b0%20c2%2051%209c%2000%20c3%2088%3C/text%3E%3Ctext%20x='300'%20y='238'%3E00%20c4%20a2%2068%2063%2069%2070%2068%3C/text%3E%3Ctext%20x='120'%20y='318'%3E5f%206d%2073%2067%203a%2031%203a%2061%2073%206b%3C/text%3E%3C/g%3E%3C/svg%3E");
+  background-size: 680px 440px;
   animation: hex-drift 160s linear infinite alternate;
 }
 

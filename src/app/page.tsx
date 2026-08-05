@@ -1,14 +1,23 @@
 "use client";
 // Marketing landing for kaskly.app (root route; the composer lives at
-// /ask). Same design language as the app — near-black, hex texture, teal,
-// clear glass — and the same voice as the composer's enforcement blurb:
-// short declarative sentences, honesty as a feature. The hero art is the
-// REAL AskCard component with mock data, countdown ticking live.
+// /ask).
+//
+// REGISTER: this app moves money, so the page is calm and solid — closer to
+// a serious wallet than to a launch page. Concretely: no colour wash behind
+// the hero (teal is a sharp accent ON elements, never a glow behind them),
+// no manufactured urgency of any kind, and plain declarative copy. The
+// primitive is genuinely new; saying so clearly persuades better than
+// adjectives do.
+//
+// The hero shows the REAL AskCard component with example data rather than a
+// picture of one, so the first thing a visitor meets is the product.
 import Link from "next/link";
 import { AskCard } from "@/components/ask-card";
+import { DagVisual } from "@/components/dag-visual";
 
+/** One primary action, worded identically both times it appears. */
 const CTA =
-  "inline-block px-5 py-2.5 rounded-md bg-teal text-background font-semibold text-sm hover:opacity-90 transition-opacity";
+  "inline-flex items-center justify-center px-6 py-3 rounded-md bg-teal text-background font-semibold text-sm hover:opacity-90 transition-opacity";
 
 function EscrowedBadge() {
   return (
@@ -20,31 +29,48 @@ function EscrowedBadge() {
 
 export default function LandingPage() {
   return (
-    <div className="space-y-24 pt-8 pb-8">
+    // ONE rhythm for the page: every section is a child of this stack, so
+    // vertical spacing is decided once rather than per section.
+    <div className="relative space-y-20 sm:space-y-28 pb-8">
+      {/* Left-rail blockDAG. Pinned to the viewport and positioned from the
+          same 42rem column this page is centred in, so it sits entirely in
+          the left margin and can never overlap the hero. Purely decorative
+          texture — the value proposition is the focal point. */}
+      <DagVisual />
+
       {/* ---------- 1. HERO ---------- */}
-      <section className="space-y-6">
-        <p className="text-xs uppercase tracking-widest text-teal">
-          Just Ask Me
-        </p>
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight [text-wrap:balance]">
-          Ever message someone you admire — and hear nothing back?
-        </h1>
-        <p className="text-muted text-lg leading-relaxed max-w-xl">
-          Kaskly attaches real money to your message. They reply, they earn
-          it. They stay silent, it comes back to you — automatically.
-        </p>
-        <div className="flex flex-wrap items-center gap-5">
-          <Link href="/ask" className={CTA}>
-            Send your first Ask
-          </Link>
-          <a
-            href="#how"
-            className="text-sm text-muted hover:text-foreground transition-colors"
-          >
-            How it works ↓
-          </a>
+      <section className="pt-10 sm:pt-16 space-y-8">
+        <div className="text-center space-y-5">
+          <p className="text-xs uppercase tracking-widest text-teal">
+            Attention monetization without the ads
+          </p>
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight [text-wrap:balance] max-w-2xl mx-auto">
+            Ever message someone you admire — and hear nothing back?
+          </h1>
+          {/* One clarifying line, answering the headline's question. */}
+          <p className="text-muted text-lg leading-relaxed max-w-xl mx-auto [text-wrap:pretty]">
+            Kaskly attaches real money to your message. They reply, they earn
+            it. They stay silent, it comes back to you — automatically.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+            <Link href="/ask" className={CTA}>
+              Send an Ask
+            </Link>
+            <a
+              href="#how"
+              className="text-sm text-muted hover:text-foreground transition-colors"
+            >
+              How it works ↓
+            </a>
+          </div>
         </div>
-        <div className="pt-6" aria-hidden>
+
+        {/* The product itself, in the hero. Labelled as an example so it is
+            never mistaken for the visitor's own inbox. */}
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-widest text-muted text-center">
+            An Ask, exactly as it arrives
+          </p>
           <AskCard
             message={
               "Love your work. One question: what would you build on Kaspa if you had a free weekend? 25 TKAS says it's worth two minutes of your time."
@@ -56,6 +82,7 @@ export default function LandingPage() {
             deadline="6012000"
             daaScore={0n}
             status="open"
+            viewer="recipient"
             badge={<EscrowedBadge />}
           />
         </div>
@@ -70,8 +97,8 @@ export default function LandingPage() {
               1 · Ask
             </p>
             <p className="text-[15px] leading-relaxed">
-              Write your message. Attach KAS. Set a deadline. Your money
-              locks under an on-chain rule the moment you send.
+              Write your message. Attach KAS. Set a deadline. Your money locks
+              under an on-chain rule the moment you send.
             </p>
           </div>
           <div className="glass-clear rounded-xl p-5 space-y-2">
@@ -88,8 +115,8 @@ export default function LandingPage() {
               3 · Silence refunds you
             </p>
             <p className="text-[15px] leading-relaxed">
-              The deadline passes and the chain returns your KAS. No
-              permission needed — from anyone.
+              The deadline passes and the chain returns your KAS. No permission
+              needed — from anyone.
             </p>
           </div>
         </div>
@@ -97,9 +124,6 @@ export default function LandingPage() {
           Enforced by on-chain covenants — not promises. No protocol fees,
           ever.
         </p>
-        <Link href="/ask" className="text-sm text-teal hover:underline">
-          Try it now →
-        </Link>
       </section>
 
       {/* ---------- 3. WHY IT MATTERS ---------- */}
@@ -115,9 +139,7 @@ export default function LandingPage() {
             <ul className="space-y-2 text-[15px] leading-relaxed">
               <li>Your message stands out from the noise.</li>
               <li>You never pay for silence.</li>
-              <li>
-                The only outcomes are an answer or your money back.
-              </li>
+              <li>The only outcomes are an answer or your money back.</li>
             </ul>
           </div>
           <div className="glass-clear rounded-xl p-5 space-y-3">
@@ -141,23 +163,29 @@ export default function LandingPage() {
           Good for you. Good for Kaspa.
         </h2>
         <p className="text-[15px] text-muted leading-relaxed max-w-xl">
-          Every Ask brings someone new. The person you ask doesn&apos;t need
-          to be in crypto — a wallet is two clicks in a browser, no
-          exchange, no purchase. They enter the network holding KAS they
-          earned, not bought.
+          Every Ask brings someone new. The person you ask doesn&apos;t need to
+          be in crypto — a wallet is two clicks in a browser, no exchange, no
+          purchase. They enter the network holding KAS they earned, not bought.
         </p>
         <p className="text-[15px] text-muted leading-relaxed max-w-xl">
-          Kaskly turns Kaspa&apos;s speed and covenants into something
-          people outside crypto actually want: a reason to show up. More
-          users. More real usage. More people earning their first KAS.
-          That&apos;s the win-win.
+          Kaskly turns Kaspa&apos;s speed and covenants into something people
+          outside crypto actually want: a reason to show up.
         </p>
-        <Link href="/ask" className={CTA}>
-          Ask someone today
-        </Link>
       </section>
 
-      {/* ---------- 5. TRUST STRIP ---------- */}
+      {/* ---------- 5. CLOSING CTA — same action, same words ---------- */}
+      <section className="text-center space-y-4">
+        <p className="text-lg [text-wrap:balance] max-w-lg mx-auto">
+          A reply, or your money back. Those are the only two endings.
+        </p>
+        <div>
+          <Link href="/ask" className={CTA}>
+            Send an Ask
+          </Link>
+        </div>
+      </section>
+
+      {/* ---------- 6. TRUST STRIP (honesty labels — always visible) ------- */}
       <section className="glass-clear rounded-xl p-5 space-y-3">
         <p className="text-sm leading-relaxed">
           <span className="text-foreground">Non-custodial</span>
@@ -174,13 +202,12 @@ export default function LandingPage() {
             TESTNET
           </span>
           <span className="text-muted">
-            Beta on testnet — real money mode comes after it survives
-            testing.
+            Beta on testnet — real money mode comes after it survives testing.
           </span>
         </p>
       </section>
 
-      {/* ---------- 6. FOOTER ---------- */}
+      {/* ---------- 7. FOOTER ---------- */}
       <section className="border-t border-white/10 pt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-faint">
         <span className="text-muted">kaskly.app</span>
         <span>·</span>
@@ -196,7 +223,7 @@ export default function LandingPage() {
         </a>
         <span className="ml-auto">
           <Link href="/ask" className="text-teal hover:underline">
-            Send your first Ask →
+            Send an Ask →
           </Link>
         </span>
       </section>
